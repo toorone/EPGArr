@@ -1,0 +1,25 @@
+[package]
+name = "epg-loader"
+version = "0.1.0"
+edition = "2021"
+description = "Enriches an XMLTV guide with channel logos, TMDB posters, ratings and categories for Emby"
+publish = false
+# File::try_lock (used for build.lock) needs Rust 1.89 or newer.
+rust-version = "1.89"
+
+[dependencies]
+anyhow = "1"
+clap = { version = "4", features = ["derive", "env"] }
+flate2 = "1"
+quick-xml = "0.36"
+# rustls instead of OpenSSL, so the build needs no libssl-dev.
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "gzip"] }
+# "bundled" compiles SQLite in, so no system libsqlite3-dev is needed.
+rusqlite = { version = "0.32", features = ["bundled"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "time", "sync", "fs", "signal"] }
+toml = "0.8"
+
+[profile.release]
+strip = true

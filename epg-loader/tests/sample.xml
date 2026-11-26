@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE tv SYSTEM "xmltv.dtd">
+<tv generator-info-name="sample">
+  <channel id="HasLogo.us">
+    <display-name lang="en">Has Logo TV</display-name>
+    <icon src="https://example.com/haslogo.png" width="100" height="100"/>
+  </channel>
+  <channel id="EmptyIcon.uk">
+    <display-name>Empty Icon HD</display-name>
+    <icon src=""/>
+  </channel>
+  <channel id="NoLogo.ca">
+    <display-name>No Logo Channel</display-name>
+    <url>https://example.com</url>
+  </channel>
+  <programme start="20261126180000 +0000" stop="20261126200000 +0000" channel="HasLogo.us">
+    <title lang="en">The Sample Movie</title>
+    <desc lang="en">A film about samples &amp; tests.</desc>
+    <date>1999</date>
+    <category lang="en">Film</category>
+  </programme>
+  <programme start="20261126200000 +0000" stop="20261126203000 +0000" channel="EmptyIcon.uk">
+    <title>Sample Show</title>
+    <episode-num system="xmltv_ns">1.4.</episode-num>
+  </programme>
+  <programme start="20261126203000 +0000" stop="20261126210000 +0000" channel="NoLogo.ca">
+    <title>Evening News</title>
+    <category>News</category>
+    <icon src="https://example.com/news.png"/>
+    <rating system="VCHIP"><value>TV-G</value></rating>
+  </programme>
+  <programme start="20261126210000 +0000" stop="20261126230000 +0000" channel="NoLogo.ca">
+    <title>Premier League Football</title>
+  </programme>
+</tv>

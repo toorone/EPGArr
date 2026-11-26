@@ -1,0 +1,34 @@
+# OPTIONAL: settings normally live in epg.db and are edited on settings.php.
+# You don't need this file.
+#
+# To set things up from a file instead, copy it as config.toml into the data
+# folder (shown on setup.php) BEFORE the database is first created. It is
+# imported once, while the settings table is still empty, and can be deleted
+# afterwards. Never put a copy with a real key inside the web root.
+
+# XMLTV source. Plain or gzipped (detected automatically), http(s) URL or a local file path.
+source_url = "https://example.com/guide.xml.gz"
+
+# TMDB v3 "API Key" or v4 "API Read Access Token" (starts with eyJ...). Empty = no TMDB.
+tmdb_api_key = ""
+
+# The web folder that gets epg.xml, epg.xml.gz and status.json (absolute path).
+# setup.php passes this to the program automatically, so you can leave it out.
+# output_dir = "/path/to/your/web/folder"
+
+# Optional: drop programmes that start more than this many days from now.
+# days = 7
+
+language = "en-US"
+rating_country = "US"
+
+# "iptv-org" or "off"
+logo_source = "iptv-org"
+
+# Hours between builds.
+refresh_hours = 6
+
+# A channels.toml next to this file is imported into the channel overrides once:
+# [channels."BBCNews.uk"]
+# logo = "https://example.com/bbc-news.png"
+# group = "News"

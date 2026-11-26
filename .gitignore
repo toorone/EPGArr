@@ -1,0 +1,16 @@
+# EPGArr: generated files and anything that is not code. Code history only.
+/epg.xml
+/epg.xml.gz
+/status*.json
+/guides/
+/logs/
+/logos/
+/setup-paths.php
+epg-loader/target/
+*.tmp
+*.lock
+*.log
+.DS_Store
+Thumbs.db
+desktop.ini
+!epg-loader/Cargo.lock

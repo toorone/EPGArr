@@ -1,0 +1,69 @@
+# Category rules. Groups: Movie, Series, News, Sports, Kids, Music, Documentary.
+#
+# Matching ignores case and punctuation and works on whole words, so "news"
+# matches "Evening News" but not "Newsroom". Rules are tried top to bottom and
+# the first match wins.
+#
+# The live copy is rules.toml in the data folder (written there on first run;
+# the setup page shows where that is). Edit that one. This file in the source
+# folder is the built-in default.
+#
+# How a programme's main group is chosen, in order:
+#   1. the channel's group in the channel overrides (settings page)
+#   2. the source's own categories (an exact group name, then [[category_rule]])
+#   3. TMDB media type and genres
+#   4. [[keyword_rule]] on the programme title
+#   5. programmes with an episode number fall back to Series
+# The group is added as a <category>, unless the programme already has it.
+
+# --- Matched against the source's existing <category> text ---
+
+[[category_rule]]
+group = "Kids"
+match = ["children", "childrens", "kids", "cartoon", "cartoons", "preschool"]
+
+[[category_rule]]
+group = "Sports"
+match = ["sport", "sports", "football", "soccer", "basketball", "baseball", "hockey", "tennis", "golf", "motorsport", "racing", "boxing", "wrestling", "cricket", "rugby", "athletics", "olympics", "sports event", "sports talk"]
+
+[[category_rule]]
+group = "News"
+match = ["news", "current affairs", "weather", "newsmagazine", "politics"]
+
+[[category_rule]]
+group = "Documentary"
+match = ["documentary", "documentaries", "docu", "nature", "wildlife", "history", "science", "biography"]
+
+[[category_rule]]
+group = "Music"
+match = ["music", "concert", "concerts", "musical"]
+
+[[category_rule]]
+group = "Movie"
+match = ["movie", "movies", "film", "films", "cinema", "feature film", "tv movie"]
+
+[[category_rule]]
+group = "Series"
+match = ["series", "sitcom", "soap", "soap opera", "tv show", "episodic"]
+
+# --- Matched against the programme title (used only when nothing above matched) ---
+
+[[keyword_rule]]
+group = "News"
+match = ["news", "newsnight", "headlines", "bulletin", "weather", "breakfast news", "world news"]
+
+[[keyword_rule]]
+group = "Sports"
+match = ["football", "soccer", "nfl", "nba", "nhl", "mlb", "mls", "premier league", "champions league", "europa league", "la liga", "serie a", "bundesliga", "cricket", "rugby", "tennis", "wimbledon", "golf", "pga", "formula 1", "f1", "grand prix", "motogp", "nascar", "indycar", "boxing", "ufc", "wwe", "aew", "mma", "darts", "snooker", "olympics", "world cup", "super bowl", "match of the day", "sportscenter", "live sport"]
+
+[[keyword_rule]]
+group = "Kids"
+match = ["cartoon", "cartoons", "kids", "junior", "toons"]
+
+[[keyword_rule]]
+group = "Music"
+match = ["concert", "live in concert", "music video", "music videos", "top 40", "top 20", "unplugged"]
+
+[[keyword_rule]]
+group = "Documentary"
+match = ["documentary", "docuseries", "wildlife"]
