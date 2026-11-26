@@ -12,6 +12,7 @@ use anyhow::{anyhow, Result};
 use quick_xml::events::{BytesCData, BytesEnd, BytesStart, BytesText, Event};
 use quick_xml::{Reader, Writer};
 use std::collections::HashMap;
+use std::io::Write;
 
 #[derive(Debug, Default, Clone)]
 pub struct ChannelInfo {
@@ -295,23 +296,21 @@ pub fn scan(xml: &[u8]) -> Result<Scan> {
     Ok(out)
 }
 
-type W = Writer<Vec<u8>>;
-
-fn write_icon(w: &mut W, src: &str) -> Result<()> {
+fn write_icon<T: Write>(w: &mut Writer<T>, src: &str) -> Result<()> {
     let mut el = BytesStart::new("icon");
     el.push_attribute(("src", src));
     w.write_event(Event::Empty(el))?;
     Ok(())
 }
 
-fn write_text_el(w: &mut W, name: &str, text: &str) -> Result<()> {
+fn write_text_el<T: Write>(w: &mut Writer<T>, name: &str, text: &str) -> Result<()> {
     w.write_event(Event::Start(BytesStart::new(name)))?;
     w.write_event(Event::Text(BytesText::new(text)))?;
     w.write_event(Event::End(BytesEnd::new(name)))?;
     Ok(())
 }
 
-fn write_prog_additions(w: &mut W, p: &ProgPlan) -> Result<()> {
+fn write_prog_additions<T: Write>(w: &mut Writer<T>, p: &ProgPlan) -> Result<()> {
     if let Some(d) = &p.desc {
         write_text_el(w, "desc", d)?;
     }
@@ -340,9 +339,15 @@ fn write_prog_additions(w: &mut W, p: &ProgPlan) -> Result<()> {
 
 /// Second pass: copy everything through and add what was planned.
 /// `channel_logo` maps channel id to a logo URL for channels without one.
+#[cfg_attr(not(test), allow(dead_code))]
 pub fn rewrite(xml: &[u8], channel_logo: &HashMap<String, String>, plans: &[ProgPlan]) -> Result<Vec<u8>> {
+    rewrite_into(xml, channel_logo, plans, Vec::with_capacity(xml.len() + xml.len() / 4))
+}
+
+/// Like `rewrite`, but streams into `out` (a file), so a large guide is never held in memory twice.
+pub fn rewrite_into<T: Write>(xml: &[u8], channel_logo: &HashMap<String, String>, plans: &[ProgPlan], out: T) -> Result<T> {
     let mut reader = Reader::from_reader(xml);
-    let mut writer = Writer::new(Vec::with_capacity(xml.len() + xml.len() / 4));
+    let mut writer = Writer::new(out);
     let mut buf = Vec::new();
     let mut depth = 0usize;
     let mut pidx = 0usize;

@@ -993,6 +993,13 @@ async fn run(conn: &Connection, cfg: &Config, target: &Target, opts: Opts, start
         prog_keys.push(key);
     }
 
+    // The background lookups work from this list instead of reading the source again.
+    if !opts.dry_run {
+        if let Err(e) = db::set_wanted(conn, target.id, &wanted, &first_start) {
+            warnings.push(format!("saving the titles for the background lookups: {e:#}"));
+        }
+    }
+
     // 4. TMDB lookups (cached in epg.db)
     let mut cache = TmdbCache::load(conn, &cfg.language, &cfg.rating_country)?;
     let online = if opts.no_tmdb {
@@ -1254,21 +1261,27 @@ async fn run(conn: &Connection, cfg: &Config, target: &Target, opts: Opts, start
     }
 
     // 6. Write
-    let out = xmltv::rewrite(&xml, &channel_logo, &plans)?;
     println!(
         "Added {posters} posters, {ratings} ratings, {imdb_added} IMDb ratings, {descs} descriptions, {cats_added} categories; dropped {dropped} programmes"
     );
     let built = timeutil::format_utc(now);
     check_cancel()?;
-    let mut gz_bytes = 0usize;
-    if !opts.dry_run {
+    let xml_bytes: usize;
+    let gz_bytes: usize;
+    if opts.dry_run {
+        xml_bytes = xmltv::rewrite_into(&xml, &channel_logo, &plans, output::Counter::default())?.bytes;
+        gz_bytes = 0;
+    } else {
         if let Some(dir) = target.xml.parent() {
             std::fs::create_dir_all(dir).with_context(|| format!("creating {}", dir.display()))?;
         }
-        output::write_atomic(&target.xml, &out)?;
-        let gz = output::gzip(&out)?;
-        gz_bytes = gz.len();
-        output::write_atomic(&target.gz, &gz)?;
+        // Straight to disk, gzipped on the way: a guide can be several GB, so it is never held in memory.
+        let w = output::GuideWriter::open(&target.xml, &target.gz)?;
+        let w = xmltv::rewrite_into(&xml, &channel_logo, &plans, w)?;
+        drop(xml);
+        let (xb, gb) = w.finish()?;
+        xml_bytes = xb;
+        gz_bytes = gb;
         if let Err(e) = db::set_missing_logos(conn, target.id, &missing) {
             errors.push(format!("saving the missing logo list: {e:#}"));
         }
@@ -1318,7 +1331,7 @@ async fn run(conn: &Connection, cfg: &Config, target: &Target, opts: Opts, start
         tvmaze_deferred,
         posters_from_sportsdb: posters_sportsdb,
         sportsdb_lookups,
-        xml_bytes: out.len(),
+        xml_bytes,
         gz_bytes,
         errors_total: errors.total,
         errors: errors.list,
@@ -1326,14 +1339,14 @@ async fn run(conn: &Connection, cfg: &Config, target: &Target, opts: Opts, start
         last_error: None,
     };
     if opts.dry_run {
-        println!("Dry run: {} bytes of XML produced, nothing written", out.len());
+        println!("Dry run: {xml_bytes} bytes of XML produced, nothing written");
     } else {
         write_status(&target.status, &status)?;
         target.retire_old_files(conn);
         println!(
             "Wrote {} ({} bytes) and its .gz in {:.1}s",
             target.xml.display(),
-            out.len(),
+            xml_bytes,
             status.duration_secs
         );
     }

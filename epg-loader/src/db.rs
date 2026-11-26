@@ -220,6 +220,20 @@ const MIGRATIONS: &[&str] = &[
         fetched_at INTEGER NOT NULL
     ) WITHOUT ROWID;
     "#,
+    // 9: the titles each guide needs from TMDB, saved by its build, so the background
+    // lookups never have to download and read the (possibly huge) sources again.
+    r#"
+    CREATE TABLE tmdb_wanted (
+        guide_id    INTEGER NOT NULL,
+        cache_key   TEXT NOT NULL,
+        query       TEXT NOT NULL,
+        norm        TEXT NOT NULL,
+        year        INTEGER,
+        is_tv       INTEGER NOT NULL,
+        first_start INTEGER NOT NULL,
+        PRIMARY KEY (guide_id, cache_key)
+    ) WITHOUT ROWID;
+    "#,
 ];
 
 pub fn open(data_dir: &Path) -> Result<Connection> {
@@ -556,6 +570,61 @@ pub fn slug_in_use(conn: &Connection, slug: &str, except_id: i64) -> Result<bool
         |r| r.get(0),
     )?;
     Ok(n > 0)
+}
+
+// ---------------------------------------------------------------- titles wanted from TMDB
+
+/// Save the titles this guide needs from TMDB (replacing its previous list).
+pub fn set_wanted(
+    conn: &Connection,
+    guide_id: i64,
+    wanted: &HashMap<String, crate::tmdb::LookupKey>,
+    first_start: &HashMap<String, i64>,
+) -> Result<()> {
+    let tx = conn.unchecked_transaction()?;
+    tx.execute("DELETE FROM tmdb_wanted WHERE guide_id = ?1", params![guide_id])?;
+    {
+        let mut st = tx.prepare(
+            "INSERT OR REPLACE INTO tmdb_wanted (guide_id, cache_key, query, norm, year, is_tv, first_start)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        )?;
+        for k in wanted.values() {
+            let s = first_start.get(&k.key).copied().unwrap_or(i64::MAX);
+            st.execute(params![guide_id, k.key, k.query, k.norm, k.year, k.is_tv, s])?;
+        }
+    }
+    tx.commit()?;
+    Ok(())
+}
+
+/// The titles the given guides need: key -> lookup, and key -> earliest start.
+pub fn wanted_for(
+    conn: &Connection,
+    guide_ids: &[i64],
+) -> Result<(HashMap<String, crate::tmdb::LookupKey>, HashMap<String, i64>)> {
+    let mut wanted = HashMap::new();
+    let mut first = HashMap::new();
+    let mut st = conn.prepare("SELECT cache_key, query, norm, year, is_tv, first_start FROM tmdb_wanted WHERE guide_id = ?1")?;
+    for id in guide_ids {
+        let rows = st.query_map(params![id], |r| {
+            Ok((
+                crate::tmdb::LookupKey {
+                    key: r.get(0)?,
+                    query: r.get(1)?,
+                    norm: r.get(2)?,
+                    year: r.get(3)?,
+                    is_tv: r.get::<_, i64>(4)? != 0,
+                },
+                r.get::<_, i64>(5)?,
+            ))
+        })?;
+        for row in rows {
+            let (k, s) = row?;
+            first.entry(k.key.clone()).and_modify(|e: &mut i64| *e = (*e).min(s)).or_insert(s);
+            wanted.entry(k.key.clone()).or_insert(k);
+        }
+    }
+    Ok((wanted, first))
 }
 
 // ---------------------------------------------------------------- runs

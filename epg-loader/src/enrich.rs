@@ -20,12 +20,11 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use crate::config::Config;
-use crate::groups::Rules;
 use crate::tmdb::{LookupKey, Tmdb, TmdbCache};
 use crate::tvmaze;
 use crate::{
-    acquire_named_lock, build_guides, cancel_requested, check_cancel, db, guide_config, output, source, timeutil,
-    tmdb_key_for, watch_cancel, xmltv, Cancelled, Opts, Outcome, Target, CANCEL, TERMINATED, TMDB_SAVE_BATCH,
+    acquire_named_lock, build_guides, cancel_requested, check_cancel, db, output, timeutil, watch_cancel, Cancelled,
+    Opts, Outcome, Target, CANCEL, TERMINATED, TMDB_SAVE_BATCH,
 };
 
 /// Held while enrich runs; the dashboard checks it with flock().
@@ -288,60 +287,16 @@ async fn lookup_all(conn: &Connection, cfg: &Config, opts: Opts, st: &mut Enrich
         .build()
         .context("building HTTP client")?;
 
-    // Which titles do the guides need? Same rules as the build, over every enabled guide.
-    let overrides = db::channel_overrides(conn)?;
-    let rules = Rules::load(&cfg.rules_file)?;
+    // Which titles do the guides need? Each build saves its list, so the sources (which can be
+    // several GB) are never downloaded or read here.
     let now = timeutil::now_unix();
-    let mut wanted: HashMap<String, LookupKey> = HashMap::new();
-    let mut first_start: HashMap<String, i64> = HashMap::new();
-    let mut skipped: std::collections::HashSet<String> = std::collections::HashSet::new();
-    let guides: Vec<db::Guide> = db::guides(conn)?.into_iter().filter(|g| g.enabled).collect();
-    let mut read = 0usize;
-    for g in &guides {
-        let gcfg = guide_config(cfg, g);
-        if gcfg.source_url.is_empty() {
-            continue;
-        }
-        println!("Fetching the source of guide \"{}\"...", g.name);
-        st.message = format!("Reading the source of guide \"{}\"", g.name);
-        write_status(dir, st);
-        let fetched = tokio::select! {
-            r = source::fetch(&client, &gcfg.source_url, &cfg.base_dir) => r,
-            _ = cancel_requested() => return Err(Cancelled.into()),
-        };
-        // One unreachable source must not stop the lookups for the others.
-        let scan = match fetched.and_then(source::decode).and_then(|xml| xmltv::scan(&xml)) {
-            Ok(s) => s,
-            Err(e) => {
-                eprintln!("warning: guide \"{}\": {e:#}; skipping its titles this time", g.name);
-                continue;
-            }
-        };
-        read += 1;
-        check_cancel()?;
-        let horizon = gcfg.days.map(|d| now + i64::from(d) * 86_400);
-        for p in &scan.programmes {
-            let start = timeutil::parse_xmltv_time(&p.start);
-            if let (Some(h), Some(s)) = (horizon, start) {
-                if s > h {
-                    continue;
-                }
-            }
-            if let Some(k) = tmdb_key_for(p, &overrides, &rules) {
-                let s = start.unwrap_or(i64::MAX);
-                first_start.entry(k.key.clone()).and_modify(|e| *e = (*e).min(s)).or_insert(s);
-                wanted.entry(k.key.clone()).or_insert(k);
-            } else if let Some(t) = p.title.as_deref() {
-                if !(p.has_icon && p.has_rating) {
-                    skipped.insert(crate::groups::normalize_words(t));
-                }
-            }
-        }
+    let ids: Vec<i64> = db::guides(conn)?.into_iter().filter(|g| g.enabled).map(|g| g.id).collect();
+    let (wanted, first_start) = db::wanted_for(conn, &ids)?;
+    if wanted.is_empty() {
+        bail!("no titles are known yet: build the guides first");
     }
-    if read == 0 {
-        bail!("no guide source could be read (check the sources on the Guides page)");
-    }
-    st.skipped = skipped.len();
+    // Skipped titles (news, sports, filler) are counted by the builds, not here.
+    st.skipped = 0;
 
     let mut cache = TmdbCache::load(conn, &cfg.language, &cfg.rating_country)?;
     let now_u = now.max(0) as u64;
