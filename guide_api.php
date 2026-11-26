@@ -94,6 +94,30 @@ try {
         out(['ch' => $ch, 'from' => $from, 'to' => $to, 'progs' => $rows]);
     }
 
+    // Programme search: titles and sub-titles from now on, soonest first.
+    if (isset($_GET['search'])) {
+        $q = trim((string)$_GET['search']);
+        if (strlen($q) < 2) {
+            out(['results' => []]);
+        }
+        // "!" escapes LIKE wildcards typed by the user.
+        $like = '%' . strtr(substr($q, 0, 120), ['!' => '!!', '%' => '!%', '_' => '!_']) . '%';
+        $star = epg_has_column($db, 'guide_programmes', 'star') ? 'p.star' : 'NULL';
+        $st = $db->prepare('SELECT p.id, p.channel_pos, p.start, p.stop, p.title, p.episode, p.icon, p.group_name, ' . $star . ' AS star, c.name, c.logo
+                             FROM guide_programmes p JOIN guide_channels c ON c.pos = p.channel_pos' . ($gid === null ? '' : ' AND c.guide_id = p.guide_id') . '
+                             WHERE p.stop > ?' . ($gid === null ? '' : ' AND p.guide_id = ' . (int)$gid) . '
+                               AND (p.title LIKE ? ESCAPE \'!\' OR p.sub_title LIKE ? ESCAPE \'!\')
+                             ORDER BY p.start, c.pos LIMIT 50');
+        $st->execute([time(), $like, $like]);
+        $rows = [];
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            $rows[] = ['id' => (int)$r['id'], 'ch' => (int)$r['channel_pos'], 'start' => (int)$r['start'], 'stop' => (int)$r['stop'],
+                       'title' => $r['title'], 'episode' => $r['episode'], 'icon' => $r['icon'], 'group' => $r['group_name'],
+                       'star' => $r['star'], 'channel' => $r['name'], 'logo' => $r['logo']];
+        }
+        out(['now' => time(), 'results' => $rows]);
+    }
+
     // Channel list (default).
     $channels = [];
     foreach ($db->query('SELECT pos, channel_id, name, logo, group_name FROM guide_channels' . $gWhere . ' ORDER BY pos')->fetchAll(PDO::FETCH_NUM) as $r) {

@@ -38,10 +38,13 @@ if ($guides && $sel) {
     $picker .= '<option value="__add__">+ Add guide…</option>';
     $picker .= '</select></label>';
 }
-$search = '<div class="g-tools-top">' . $picker . '<div class="search search-field">'
+$search = '<div class="g-tools-top">' . $picker
+    . '<span class="s-mode" role="group" aria-label="Search in"><button type="button" class="on" data-mode="chans" aria-pressed="true">Channels</button><button type="button" data-mode="progs" aria-pressed="false">Programmes</button></span>'
+    . '<div class="search search-field">'
     . epg_icon('search')
     . '<input type="search" id="g-search" class="input field" placeholder="Search channels" aria-label="Search channels" autocomplete="off"' . ($empty ? ' disabled' : '') . '>'
     . '<button type="button" class="search-clear" id="g-search-clear" aria-label="Clear search" title="Clear search" hidden>' . epg_icon('x') . '</button>'
+    . '<div class="s-results" id="g-sresults" role="listbox" aria-label="Programmes found" hidden></div>'
     . '</div></div>';
 // The guide picker and search sit on the same line as the day buttons and groups (below).
 epg_layout_start($p, 'guide', 'TV Guide', '', epg_take_flashes(), $empty ? '<div class="g-tools-top">' . $picker . '</div>' : '');
@@ -295,6 +298,96 @@ if ($empty !== ''): ?>
       if (chip) chip.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
     });
     update();
+  })();
+  </script>
+  <script>
+  (function () {
+    // Search box: "Channels" filters the channel list (guide.js), "Programmes" finds programmes.
+    var input = document.getElementById('g-search'), box = document.getElementById('g-sresults');
+    if (!input || !box) return;
+    var modeBtns = document.querySelectorAll('.s-mode button');
+    var timer = 0, seq = 0, items = [], active = -1;
+    function setMode(m, keep) {
+      input.dataset.mode = m;
+      modeBtns.forEach(function (b) { var on = b.dataset.mode === m; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); });
+      input.placeholder = m === 'progs' ? 'Search programmes' : 'Search channels';
+      input.setAttribute('aria-label', input.placeholder);
+      try { localStorage.setItem('epg-search-mode', m); } catch (e) {}
+      close();
+      if (!keep) { input.value = ''; input.dispatchEvent(new Event('input')); }
+    }
+    modeBtns.forEach(function (b) { b.addEventListener('click', function () { setMode(b.dataset.mode); input.focus(); }); });
+    var saved = 'chans';
+    try { saved = localStorage.getItem('epg-search-mode') || 'chans'; } catch (e) {}
+    setMode(saved === 'progs' ? 'progs' : 'chans', true);
+
+    function close() { box.hidden = true; box.textContent = ''; items = []; active = -1; }
+    function hm(t) { return new Date(t * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); }
+    function dayName(t) { return new Date(t * 1000).toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'short' }); }
+    function slug(g) { return (g || 'other').toLowerCase().replace(/[^a-z]+/g, ''); }
+    function mk(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+    function pick(r) {
+      close();
+      window.dispatchEvent(new CustomEvent('epg-goto', { detail: { ch: r.ch, start: r.start, id: r.id } }));
+    }
+    function highlight(i) {
+      items.forEach(function (el, k) { el.classList.toggle('active', k === i); el.setAttribute('aria-selected', k === i ? 'true' : 'false'); });
+      active = i;
+      if (items[i]) items[i].scrollIntoView({ block: 'nearest' });
+    }
+    function show(rows, now) {
+      box.textContent = '';
+      items = [];
+      active = -1;
+      if (!rows.length) { box.appendChild(mk('p', 'muted s-none', 'No programmes found.')); box.hidden = false; return; }
+      var endToday = new Date(); endToday.setHours(24, 0, 0, 0); endToday = endToday.getTime() / 1000;
+      var last = '';
+      rows.forEach(function (r) {
+        var head = r.start <= now ? 'On now' : (r.start < endToday ? 'Later today' : dayName(r.start));
+        if (head !== last) { box.appendChild(mk('div', 's-head', head)); last = head; }
+        var row = mk('div', 's-row g-' + slug(r.group));
+        row.setAttribute('role', 'option');
+        var thumb = mk('div', 's-thumb');
+        if (r.icon) { var im = mk('img'); im.alt = ''; im.loading = 'lazy'; im.referrerPolicy = 'no-referrer'; im.src = r.icon; im.onerror = function () { this.remove(); }; thumb.appendChild(im); }
+        row.appendChild(thumb);
+        var txt = mk('div', 's-txt');
+        txt.appendChild(mk('div', 's-title', r.title + (r.episode ? ' · ' + r.episode : '')));
+        var meta = mk('div', 's-meta');
+        meta.appendChild(mk('span', 's-dot'));
+        meta.appendChild(document.createTextNode(r.channel + ' · ' + hm(r.start) + '–' + hm(r.stop)));
+        if (r.star) meta.appendChild(mk('span', 's-star', ' ★ ' + r.star));
+        txt.appendChild(meta);
+        row.appendChild(txt);
+        if (r.logo) { var lg = mk('img', 's-logo'); lg.alt = ''; lg.loading = 'lazy'; lg.referrerPolicy = 'no-referrer'; lg.src = r.logo; lg.onerror = function () { this.remove(); }; row.appendChild(lg); }
+        row.addEventListener('mousedown', function (e) { e.preventDefault(); pick(r); });
+        row.addEventListener('mouseenter', function () { highlight(items.indexOf(row)); });
+        box.appendChild(row);
+        items.push(row);
+      });
+      box.hidden = false;
+    }
+    input.addEventListener('input', function () {
+      if (input.dataset.mode !== 'progs') return;
+      clearTimeout(timer);
+      var q = input.value.trim();
+      if (q.length < 2) { close(); return; }
+      timer = setTimeout(function () {
+        var mine = ++seq;
+        var g = window.EPG_GUIDE ? '&guide=' + encodeURIComponent(window.EPG_GUIDE) : '';
+        fetch('guide_api.php?search=' + encodeURIComponent(q) + g, { credentials: 'same-origin' })
+          .then(function (r) { return r.json(); })
+          .then(function (j) { if (mine === seq) show(j.results || [], j.now || Math.floor(Date.now() / 1000)); })
+          .catch(function () {});
+      }, 250);
+    });
+    input.addEventListener('keydown', function (e) {
+      if (input.dataset.mode !== 'progs' || box.hidden) return;
+      if (e.key === 'ArrowDown') { e.preventDefault(); highlight(Math.min(items.length - 1, active + 1)); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); highlight(Math.max(0, active - 1)); }
+      else if (e.key === 'Enter' && active >= 0) { e.preventDefault(); items[active].dispatchEvent(new MouseEvent('mousedown')); }
+      else if (e.key === 'Escape') { e.preventDefault(); close(); }
+    });
+    input.addEventListener('blur', function () { setTimeout(close, 150); });
   })();
   </script>
   <script src="assets/guide.js?v=<?= (int)@filemtime(__DIR__ . '/assets/guide.js') ?>"></script>

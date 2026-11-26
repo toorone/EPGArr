@@ -389,7 +389,7 @@
   if (search) {
     search.addEventListener('input', function () {
       clearTimeout(searchTimer);
-      searchTimer = setTimeout(function () { S.query = search.value.trim(); applyFilter(); }, 150);
+      searchTimer = setTimeout(function () { if (search.dataset.mode === 'progs') return; S.query = search.value.trim(); applyFilter(); }, 150);
     });
   }
   var lastPhone = null;
@@ -405,6 +405,26 @@
       scroller.scrollLeft = x(t);
     }
   });
+  // Programme search picked a result: show that channel at that time and open the details.
+  window.addEventListener('epg-goto', function (e) {
+    var d = e.detail;
+    var idx = S.rows.findIndex(function (c) { return c[0] === d.ch; });
+    if (idx < 0) {
+      // Filtered out by a group or channel search: show all channels again.
+      S.group = '';
+      S.query = '';
+      chipsBox.querySelectorAll('button').forEach(function (n, k) { n.setAttribute('aria-pressed', k === 0 ? 'true' : 'false'); });
+      applyFilter();
+      idx = S.rows.findIndex(function (c) { return c[0] === d.ch; });
+    }
+    var day = localMidnight(d.start);
+    if (day !== S.dayStart && d.start >= S.min) setDay(day, false);
+    if (idx >= 0) scroller.scrollTop = Math.max(0, idx * S.dims.rowH - S.dims.rowH);
+    scroller.scrollLeft = Math.max(0, x(Math.max(d.start, S.dayStart)) - 15 * S.dims.px);
+    render();
+    openDetail(d.id);
+  });
+
   // A logo was saved or reset in the dialog: show it right away.
   window.addEventListener('epg-logo-updated', function (e) {
     S.channels.forEach(function (c) { if (c[1] === e.detail.id) c[3] = e.detail.logo || null; });

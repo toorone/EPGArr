@@ -734,3 +734,22 @@ table.runs tr.run-detail td { background: rgba(255, 255, 255, 0.02); padding: 0.
 .guide-card.dragging { opacity: 0.35; outline: 2px dashed var(--accent); outline-offset: 2px; }
 .toast { position: fixed; right: 1.5rem; bottom: 1.5rem; z-index: 50; padding: 0.6rem 1rem; border-radius: 10px; background: var(--panel-2); border: 1px solid var(--line); box-shadow: var(--shadow-3); color: var(--text); font-size: 0.9rem; }
 .toast.bad { border-color: #d25454; color: #e06a6a; }
+/* TV Guide search: Channels | Programmes, with a results panel for programmes */
+.s-mode { display: inline-flex; flex: none; padding: 3px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel-2); height: var(--ctl-h); box-sizing: border-box; }
+.s-mode button { margin: 0; padding: 0 0.6rem; border-radius: 7px; background: transparent; box-shadow: none; color: var(--muted); font-size: 0.8rem; font-weight: 600; }
+.s-mode button.on { background: var(--accent-soft); color: var(--text); }
+.s-mode button:hover { color: var(--text); filter: none; }
+.s-results { position: absolute; top: calc(100% + 6px); right: 0; z-index: 30; width: min(520px, 90vw); max-height: 70vh; overflow-y: auto; padding: 0.35rem; border: 1px solid var(--line); border-radius: 12px; background: var(--panel-2); box-shadow: var(--shadow-3); }
+.s-head { padding: 0.5rem 0.6rem 0.25rem; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.s-row { display: flex; align-items: center; gap: 0.7rem; padding: 0.4rem 0.55rem; border-radius: 9px; cursor: pointer; }
+.s-row.active, .s-row:hover { background: rgba(255, 255, 255, 0.06); }
+.s-thumb { flex: none; width: 34px; height: 50px; border-radius: 5px; background: var(--line); overflow: hidden; }
+.s-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.s-txt { flex: 1; min-width: 0; }
+.s-title { font-weight: 600; font-size: 0.88rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.s-meta { display: flex; align-items: center; gap: 0.35rem; font-size: 0.76rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.s-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--gc, var(--muted)); }
+.s-star { color: #f5c451; }
+.s-logo { flex: none; width: 44px; height: 28px; object-fit: contain; }
+.s-none { margin: 0.6rem; }
+@media (prefers-color-scheme: light) { .s-row.active, .s-row:hover { background: rgba(15, 23, 42, 0.05); } }
