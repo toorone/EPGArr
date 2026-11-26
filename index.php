@@ -42,15 +42,26 @@ $showAllRuns = isset($_GET['history']);
 $guides = epg_guides($db);
 $runGuide = epg_has_column($db, 'runs', 'guide_id') && count($guides) > 1;
 
-// Artwork and logo coverage of the guide as it is now.
+// Artwork and logo coverage of the guides as they are now. Counting posters reads every
+// programme row (slow with large guides), so the result is cached until the next build.
 $cov = ['progs' => 0, 'posters' => 0, 'chans' => 0, 'logos' => 0];
 try {
-    $r = $db->query("SELECT COUNT(*) AS n, COUNT(NULLIF(icon, '')) AS i FROM guide_programmes")->fetch();
-    $cov['progs'] = (int)($r['n'] ?? 0);
-    $cov['posters'] = (int)($r['i'] ?? 0);
-    $r = $db->query("SELECT COUNT(*) AS n, COUNT(NULLIF(logo, '')) AS l FROM guide_channels")->fetch();
-    $cov['chans'] = (int)($r['n'] ?? 0);
-    $cov['logos'] = (int)($r['l'] ?? 0);
+    $stamp = (string)$db->query('SELECT COALESCE(MAX(finished_at), 0) || \'-\' || COUNT(*) FROM runs')->fetchColumn();
+    $cacheFile = $p['data_dir'] !== '' ? $p['data_dir'] . '/dashboard-cache.json' : '';
+    $cached = $cacheFile !== '' && is_readable($cacheFile) ? json_decode((string)file_get_contents($cacheFile), true) : null;
+    if (is_array($cached) && ($cached['stamp'] ?? '') === $stamp && is_array($cached['cov'] ?? null)) {
+        $cov = $cached['cov'] + $cov;
+    } else {
+        $r = $db->query("SELECT COUNT(*) AS n, COUNT(NULLIF(icon, '')) AS i FROM guide_programmes")->fetch();
+        $cov['progs'] = (int)($r['n'] ?? 0);
+        $cov['posters'] = (int)($r['i'] ?? 0);
+        $r = $db->query("SELECT COUNT(*) AS n, COUNT(NULLIF(logo, '')) AS l FROM guide_channels")->fetch();
+        $cov['chans'] = (int)($r['n'] ?? 0);
+        $cov['logos'] = (int)($r['l'] ?? 0);
+        if ($cacheFile !== '') {
+            @file_put_contents($cacheFile, json_encode(['stamp' => $stamp, 'cov' => $cov]));
+        }
+    }
 } catch (Throwable $t) {
     // No guide tables yet.
 }
