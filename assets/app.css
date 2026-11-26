@@ -755,3 +755,7 @@ table.runs tr.run-detail td { background: rgba(255, 255, 255, 0.02); padding: 0.
 @media (prefers-color-scheme: light) { .s-row.active, .s-row:hover { background: rgba(15, 23, 42, 0.05); } }
 /* Activity "Recently looked up": one full row only, however wide the window. */
 .act-recent { grid-template-rows: auto; grid-auto-rows: 0; row-gap: 0; overflow: hidden; }
+/* Settings › Backups */
+.bk-upload { position: relative; overflow: hidden; cursor: pointer; }
+.bk-upload input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.bk-table { margin-top: 1rem; }

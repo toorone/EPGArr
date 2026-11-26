@@ -1214,6 +1214,158 @@ function epg_bin_supports_flag(array $p, string $flag): bool
     return is_array($c) && str_contains((string)($c['help'] ?? ''), $flag);
 }
 
+// ---------------------------------------------------------------- backups
+//
+// A backup is one gzipped JSON file in <data dir>/backups/ (outside the web
+// root): the settings, the guides, channel overrides, users and the custom
+// channel logos. The newest EPG_BACKUP_KEEP are kept. Restoring makes a
+// backup of the current state first, so a restore can always be undone.
+
+const EPG_BACKUP_KEEP = 30;
+const EPG_BACKUP_TABLES = ['settings', 'guides', 'channel_overrides'];
+
+function epg_backups_dir(array $p): string
+{
+    return $p['data_dir'] !== '' ? $p['data_dir'] . '/backups' : '';
+}
+
+/** Backups, newest first: [name, time, size, reason]. */
+function epg_backups(array $p): array
+{
+    $dir = epg_backups_dir($p);
+    $out = [];
+    foreach (($dir !== '' ? glob($dir . '/epgarr-*.json.gz') : []) ?: [] as $f) {
+        $name = basename($f);
+        $reason = preg_match('/^epgarr-\d{8}-\d{6}-([a-z-]+)\.json\.gz$/', $name, $m) ? $m[1] : 'manual';
+        $out[] = ['name' => $name, 'time' => (int)filemtime($f), 'size' => (int)filesize($f), 'reason' => $reason];
+    }
+    usort($out, fn($a, $b) => $b['time'] <=> $a['time'] ?: strcmp($b['name'], $a['name']));
+    return $out;
+}
+
+/** A backup file name from the list, or '' (never a path). */
+function epg_backup_path(array $p, string $name): string
+{
+    if (!preg_match('/^epgarr-\d{8}-\d{6}(-[a-z-]+)?\.json\.gz$/', $name)) {
+        return '';
+    }
+    $f = epg_backups_dir($p) . '/' . $name;
+    return is_file($f) ? $f : '';
+}
+
+/** Make a backup now. Returns [file name, error]. */
+function epg_backup_create(array $p, string $reason = 'manual'): array
+{
+    $dir = epg_backups_dir($p);
+    if ($dir === '' || (!is_dir($dir) && !@mkdir($dir, 02770, true))) {
+        return ['', 'The backups folder could not be created in the data folder.'];
+    }
+    try {
+        $db = epg_db($p);
+        $data = ['app' => EPG_APP_NAME, 'format' => 1, 'created' => time(), 'reason' => $reason, 'tables' => [], 'users' => epg_users($p), 'logos' => []];
+        foreach (EPG_BACKUP_TABLES as $t) {
+            if (epg_has_table($db, $t)) {
+                $data['tables'][$t] = $db->query('SELECT * FROM ' . $t)->fetchAll(PDO::FETCH_ASSOC);
+            }
+        }
+        foreach (glob($p['web_dir'] . '/logos/custom/*.{png,jpg,gif,webp}', GLOB_BRACE) ?: [] as $f) {
+            $data['logos'][basename($f)] = base64_encode((string)file_get_contents($f));
+        }
+        $gz = gzencode((string)json_encode($data, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE), 6);
+        $name = 'epgarr-' . date('Ymd-His') . ($reason !== 'manual' ? '-' . preg_replace('/[^a-z-]/', '', $reason) : '') . '.json.gz';
+        if ($gz === false || @file_put_contents($dir . '/' . $name, $gz) === false) {
+            return ['', 'The backup could not be written.'];
+        }
+        @chmod($dir . '/' . $name, 0660);
+        foreach (array_slice(epg_backups($p), EPG_BACKUP_KEEP) as $old) {
+            @unlink($dir . '/' . $old['name']);
+        }
+        return [$name, ''];
+    } catch (Throwable $e) {
+        return ['', 'The backup failed: ' . $e->getMessage()];
+    }
+}
+
+/** A daily backup, made the first time Settings is opened on a new day. */
+function epg_backup_daily(array $p): void
+{
+    $list = epg_backups($p);
+    if ($p['data_dir'] !== '' && (!$list || time() - $list[0]['time'] > 86400)) {
+        epg_backup_create($p, 'daily');
+    }
+}
+
+/** What a backup holds, for the list: "12 settings · 3 guides · 2 users · 4 logos". */
+function epg_backup_summary(array $p, string $name): string
+{
+    $f = epg_backup_path($p, $name);
+    $d = $f !== '' ? json_decode((string)@gzdecode((string)file_get_contents($f)), true) : null;
+    if (!is_array($d)) {
+        return 'unreadable';
+    }
+    $n = fn($t) => count($d['tables'][$t] ?? []);
+    return $n('settings') . ' settings · ' . $n('guides') . ' guides · ' . count($d['users'] ?? []) . ' users · ' . count($d['logos'] ?? []) . ' logos';
+}
+
+/** Restore a backup (from the list, or uploaded bytes). Returns '' or an error. */
+function epg_backup_restore(array $p, string $gz): string
+{
+    $d = json_decode((string)@gzdecode($gz), true);
+    if (!is_array($d) || ($d['format'] ?? 0) !== 1 || !isset($d['tables']) || !is_array($d['tables'])) {
+        return 'That is not an EPGArr backup.';
+    }
+    [, $err] = epg_backup_create($p, 'before-restore');
+    if ($err !== '') {
+        return 'Not restored: the current state could not be backed up first (' . $err . ')';
+    }
+    try {
+        $db = epg_db($p);
+        $db->beginTransaction();
+        foreach (EPG_BACKUP_TABLES as $t) {
+            if (!isset($d['tables'][$t]) || !is_array($d['tables'][$t]) || !epg_has_table($db, $t)) {
+                continue;
+            }
+            $cols = [];
+            foreach ($db->query('PRAGMA table_info(' . $db->quote($t) . ')') as $c) {
+                $cols[] = (string)$c['name'];
+            }
+            $db->exec('DELETE FROM ' . $t);
+            foreach ($d['tables'][$t] as $row) {
+                $row = array_intersect_key((array)$row, array_flip($cols));
+                if (!$row) {
+                    continue;
+                }
+                $keys = array_keys($row);
+                $st = $db->prepare('INSERT INTO ' . $t . ' (' . implode(', ', $keys) . ') VALUES (' . implode(', ', array_fill(0, count($keys), '?')) . ')');
+                $st->execute(array_values($row));
+            }
+        }
+        $db->commit();
+    } catch (Throwable $e) {
+        if (isset($db) && $db->inTransaction()) {
+            $db->rollBack();
+        }
+        return 'Restoring failed, nothing was changed: ' . $e->getMessage();
+    }
+    if (!empty($d['users']) && is_array($d['users'])) {
+        epg_save_users($p, $d['users']);
+    }
+    if (isset($d['logos']) && is_array($d['logos'])) {
+        $dir = $p['web_dir'] . '/logos/custom';
+        if (is_dir($dir) || @mkdir($dir, 0775, true)) {
+            foreach (glob($dir . '/*.{png,jpg,gif,webp}', GLOB_BRACE) ?: [] as $f) {
+                @unlink($f);
+            }
+            foreach ($d['logos'] as $name => $b64) {
+                if (preg_match('/^[a-f0-9]{20}\.(png|jpg|gif|webp)$/', (string)$name)) {
+                    @file_put_contents($dir . '/' . $name, (string)base64_decode((string)$b64));
+                }
+            }
+        }
+    }
+    return '';
+}
+
 // ---------------------------------------------------------------- guides (several sources, one output guide each)
 
 function epg_has_table(PDO $db, string $table): bool

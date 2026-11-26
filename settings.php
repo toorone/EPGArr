@@ -34,6 +34,23 @@ function save_settings(PDO $pdo, array $kv): void
 epg_require_login($p);
 $authed = true;
 
+// Download a backup (Settings › Backups). Only names from the list are accepted.
+if (isset($_GET['backup'])) {
+    $f = epg_backup_path($p, (string)$_GET['backup']);
+    if ($f === '') {
+        http_response_code(404);
+        exit('Backup not found.');
+    }
+    header('Content-Type: application/gzip');
+    header('Content-Disposition: attachment; filename="' . basename($f) . '"');
+    header('Content-Length: ' . filesize($f));
+    readfile($f);
+    exit;
+}
+if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+    epg_backup_daily($p);
+}
+
 $fatal = null;
 $pdo = null;
 $s = [];
@@ -228,6 +245,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $authed && $fatal === null) {
                 header('Location: settings.php#users', true, 303);
                 exit;
 
+            case 'backup_create':
+            case 'backup_restore':
+            case 'backup_delete':
+            case 'backup_upload':
+                $bn = (string)($_POST['name'] ?? '');
+                if ($action === 'backup_create') {
+                    [$made, $err] = epg_backup_create($p);
+                    $err === '' ? epg_flash('ok', 'Backup made: ' . $made) : epg_flash('error', $err);
+                } elseif ($action === 'backup_delete') {
+                    $f = epg_backup_path($p, $bn);
+                    $f !== '' && ($f) ? epg_flash('ok', 'Backup deleted.') : epg_flash('error', 'That backup could not be deleted.');
+                } else {
+                    $gz = '';
+                    if ($action === 'backup_restore') {
+                        $f = epg_backup_path($p, $bn);
+                        $gz = $f !== '' ? (string)file_get_contents($f) : '';
+                    } elseif (isset($_FILES['file']) && ($_FILES['file']['error'] ?? 1) === UPLOAD_ERR_OK && is_uploaded_file((string)$_FILES['file']['tmp_name'])) {
+                        $gz = (string)file_get_contents((string)$_FILES['file']['tmp_name']);
+                    }
+                    $err = $gz === '' ? 'Choose a backup to restore.' : epg_backup_restore($p, $gz);
+                    $err === ''
+                        ? epg_flash('ok', 'Backup restored. The state before it was saved as a backup too. Rebuild the guides to use it.')
+                        : epg_flash('error', $err);
+                }
+                header('Location: settings.php#backups', true, 303);
+                exit;
+
             case 'cancel':
                 $err = epg_cancel($p);
                 $err === '' ? epg_flash('ok', 'Cancelled.') : epg_flash('error', $err);
@@ -277,6 +321,10 @@ epg_layout_start($p, 'settings', 'Settings', 'Options shared by all your guides'
     <form method="post" id="user-setpw" autocomplete="off"><?= $csrf ?><input type="hidden" name="action" value="set_password"></form>
     <form method="post" id="user-toggle"><?= $csrf ?><input type="hidden" name="action" value="toggle_user"></form>
     <form method="post" id="user-delete"><?= $csrf ?><input type="hidden" name="action" value="delete_user"></form>
+    <form method="post" id="bk-create"><?= $csrf ?><input type="hidden" name="action" value="backup_create"></form>
+    <form method="post" id="bk-restore" onsubmit="return confirm('Restore this backup? Your current settings, guides, users and custom logos are backed up first, then replaced.')"><?= $csrf ?><input type="hidden" name="action" value="backup_restore"></form>
+    <form method="post" id="bk-delete" onsubmit="return confirm('Delete this backup?')"><?= $csrf ?><input type="hidden" name="action" value="backup_delete"></form>
+    <form method="post" id="bk-upload" enctype="multipart/form-data" onsubmit="return confirm('Restore from this file? Your current state is backed up first.')"><?= $csrf ?><input type="hidden" name="action" value="backup_upload"></form>
     <form method="post" action="setup.php" id="adv-build"><?= $csrf ?><input type="hidden" name="action" value="build"><input type="hidden" name="back" value="settings"></form>
     <form method="post" action="setup.php" id="adv-test"><?= $csrf ?><input type="hidden" name="action" value="test"><input type="hidden" name="back" value="settings"></form>
     <form method="post" id="adv-cancel" onsubmit="return confirm('Stop the running task?')"><?= $csrf ?><input type="hidden" name="action" value="cancel"></form>
@@ -290,6 +338,7 @@ epg_layout_start($p, 'settings', 'Settings', 'Options shared by all your guides'
         <a href="#logos" data-tab="logos"><?= epg_icon('tv') ?>Channel logos</a>
         <a href="#schedule" data-tab="schedule"><?= epg_icon('history') ?>Schedule</a>
         <a href="#users" data-tab="users"><?= epg_icon('user') ?>Users</a>
+        <a href="#backups" data-tab="backups"><?= epg_icon('history') ?>Backups</a>
         <a href="#advanced" data-tab="advanced"><?= epg_icon('settings') ?>Advanced</a>
       </nav>
 
@@ -419,6 +468,36 @@ epg_layout_start($p, 'settings', 'Settings', 'Options shared by all your guides'
             </div>
           </div>
           <button form="user-add">Add user</button>
+        </section>
+
+        <section class="card set-panel" id="backups">
+          <h2>Backups</h2>
+          <p class="hint" style="margin-top:0">Settings, guides, channel overrides, users and custom logos. One is made every day automatically and before every restore; the newest <?= EPG_BACKUP_KEEP ?> are kept in the data folder.</p>
+          <div class="form-actions" style="margin-top:0"><button form="bk-create">Back up now</button>
+            <label class="button secondary bk-upload">Restore from a file…<input form="bk-upload" type="file" name="file" accept=".gz,application/gzip" onchange="if (this.files.length) this.form.requestSubmit()"></label></div>
+          <?php $bks = epg_backups($p); ?>
+          <?php if (!$bks): ?>
+            <p class="muted">No backups yet.</p>
+          <?php else: ?>
+          <table class="compact bk-table">
+            <thead><tr><th>When</th><th>Made</th><th>Contains</th><th class="num">Size</th><th></th></tr></thead>
+            <tbody>
+            <?php foreach ($bks as $b): ?>
+              <tr>
+                <td><?= h(date('D j M Y, H:i', $b['time'])) ?></td>
+                <td><?= h($b['reason'] === 'before-restore' ? 'before a restore' : $b['reason']) ?></td>
+                <td class="muted"><?= h(epg_backup_summary($p, $b['name'])) ?></td>
+                <td class="num"><?= h(number_format($b['size'] / 1024, 0) . ' KB') ?></td>
+                <td class="user-actions">
+                  <a class="button ghost" href="settings.php?backup=<?= h(rawurlencode($b['name'])) ?>">Download</a>
+                  <button class="ghost" form="bk-restore" name="name" value="<?= h($b['name']) ?>">Restore</button>
+                  <button class="ghost danger-text" form="bk-delete" name="name" value="<?= h($b['name']) ?>">Delete</button>
+                </td>
+              </tr>
+            <?php endforeach; ?>
+            </tbody>
+          </table>
+          <?php endif; ?>
         </section>
 
         <section class="card set-panel" id="advanced">
