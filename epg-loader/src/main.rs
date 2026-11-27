@@ -419,7 +419,9 @@ async fn main() -> ExitCode {
                 rt.block_on(async move {
                     match open_data_dir(&d) {
                         Ok(conn) => {
+                            web::SCHEDULER_RUNNING.store(true, std::sync::atomic::Ordering::Relaxed);
                             let _ = watch(&conn, &d, Some(o.as_path()), opts).await;
+                            web::SCHEDULER_RUNNING.store(false, std::sync::atomic::Ordering::Relaxed);
                         }
                         Err(e) => eprintln!("error: scheduler: {e:#}"),
                     }

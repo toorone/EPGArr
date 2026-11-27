@@ -12,6 +12,8 @@ pub mod dash;
 pub mod guides;
 pub mod html;
 pub mod jobs;
+pub mod logo;
+pub mod settings;
 pub mod tv;
 
 use axum::body::Body;
@@ -37,6 +39,8 @@ pub struct Session {
     pub fp: String,
     pub csrf: String,
     pub flashes: Vec<(String, String)>,
+    /// Form values to show again after a failed save.
+    pub old: HashMap<String, String>,
     pub seen: i64,
 }
 
@@ -77,7 +81,7 @@ impl App {
             Some(c) if sessions.contains_key(&c) => (c, false),
             _ => {
                 let id = random_token();
-                sessions.insert(id.clone(), Session { user: None, fp: String::new(), csrf: random_token(), flashes: Vec::new(), seen: now });
+                sessions.insert(id.clone(), Session { user: None, fp: String::new(), csrf: random_token(), flashes: Vec::new(), old: HashMap::new(), seen: now });
                 (id, true)
             }
         };
@@ -108,6 +112,16 @@ impl App {
             s.csrf = random_token();
             sessions.insert(ctx.sid.clone(), s);
         }
+    }
+
+    pub fn set_old(&self, ctx: &Ctx, old: HashMap<String, String>) {
+        if let Some(s) = self.sessions.lock().unwrap().get_mut(&ctx.sid) {
+            s.old = old;
+        }
+    }
+
+    pub fn take_old(&self, ctx: &Ctx) -> HashMap<String, String> {
+        self.sessions.lock().unwrap().get_mut(&ctx.sid).map(|s| std::mem::take(&mut s.old)).unwrap_or_default()
     }
 
     pub fn logout(&self, ctx: &Ctx) {
@@ -241,6 +255,59 @@ async fn logo_files(State(app): State<Shared>, UrlPath(rel): UrlPath<String>) ->
     send_file(&app.output_dir.join("logos"), &rel, "public, max-age=3600").await
 }
 
+/// Is the scheduler (the watch loop started by `serve`) running?
+pub static SCHEDULER_RUNNING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// An uploaded file: (file name, bytes).
+pub type Upload = (String, Vec<u8>);
+
+/// Read a posted form, urlencoded or multipart. Files in a multipart form are
+/// returned by field name (at most `max_file` bytes each; larger ones are dropped
+/// and reported as an empty upload with the name "too-large").
+pub async fn read_post(req: axum::extract::Request, max_file: usize) -> (guides::Posted, HashMap<String, Upload>) {
+    use axum::extract::FromRequest;
+    let multipart = req
+        .headers()
+        .get(header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .is_some_and(|v| v.starts_with("multipart/form-data"));
+    let mut fields = Vec::new();
+    let mut files = HashMap::new();
+    if multipart {
+        if let Ok(mut mp) = axum::extract::Multipart::from_request(req, &()).await {
+            while let Ok(Some(mut field)) = mp.next_field().await {
+                let name = field.name().unwrap_or("").to_string();
+                match field.file_name().map(String::from) {
+                    Some(fname) => {
+                        let mut buf = Vec::new();
+                        let mut big = false;
+                        while let Ok(Some(chunk)) = field.chunk().await {
+                            if buf.len() + chunk.len() > max_file {
+                                big = true;
+                                break;
+                            }
+                            buf.extend_from_slice(&chunk);
+                        }
+                        if big {
+                            files.insert(name, ("too-large".to_string(), Vec::new()));
+                        } else if !buf.is_empty() || !fname.is_empty() {
+                            files.insert(name, (fname, buf));
+                        }
+                    }
+                    None => {
+                        if let Ok(t) = field.text().await {
+                            fields.push((name, t));
+                        }
+                    }
+                }
+            }
+        }
+    } else if let Ok(axum::extract::Form(f)) = axum::extract::Form::<Vec<(String, String)>>::from_request(req, &()).await {
+        fields = f;
+    }
+    (guides::Posted(fields), files)
+}
+
 pub fn router(app: Shared) -> Router {
     Router::new()
         .route("/", get(dash::page_get))
@@ -249,6 +316,8 @@ pub fn router(app: Shared) -> Router {
         .route("/logout", post(auth::logout_post))
         .route("/guides.php", get(guides::page_get).post(guides::page_post))
         .route("/activity.php", get(activity::page_get).post(activity::page_post))
+        .route("/settings.php", get(settings::page_get).post(settings::page_post).layer(axum::extract::DefaultBodyLimit::max(64 << 20)))
+        .route("/logo_api.php", get(logo::info).post(logo::post).layer(axum::extract::DefaultBodyLimit::max(4 << 20)))
         .route("/guide.php", get(tv::guide_page))
         .route("/guide_api.php", get(tv::guide_api))
         .route("/assets/{*rel}", get(assets))
@@ -260,6 +329,14 @@ pub fn router(app: Shared) -> Router {
 /// Run the web server on `addr` until the process ends.
 pub async fn serve(app: Shared, addr: &str) -> anyhow::Result<()> {
     let listener = tokio::net::TcpListener::bind(addr).await?;
+    // A backup every day (and one at start-up when the last is a day old).
+    let a = app.clone();
+    tokio::spawn(async move {
+        loop {
+            settings::backup_daily(&a);
+            tokio::time::sleep(std::time::Duration::from_secs(3600)).await;
+        }
+    });
     println!("EPGArr pages on http://{addr}");
     axum::serve(listener, router(app)).await?;
     Ok(())

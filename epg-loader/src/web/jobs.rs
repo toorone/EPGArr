@@ -114,6 +114,12 @@ pub fn start(app: &Shared, name: &str, label: &str, args: &[&str], stdout_to: Op
                 j.exit = Some(code);
             }
         }
+        // Settings were saved while this ran: test them now.
+        let pending = app2.data_dir.join("check.pending");
+        if pending.exists() {
+            let _ = std::fs::remove_file(&pending);
+            let _ = start_check(&app2);
+        }
     });
     String::new()
 }
@@ -187,6 +193,15 @@ pub fn start_check(app: &Shared) -> String {
     let out = app.data_dir.join("check.json");
     let _ = std::fs::remove_file(&out);
     start(app, "check", "Test internet, TMDB key and source", &["check"], Some(&out))
+}
+
+/// Settings changed: drop the old test result and test again now, or once the
+/// running task has finished.
+pub fn queue_check(app: &Shared) {
+    let _ = std::fs::remove_file(app.data_dir.join("check.json"));
+    if !start_check(app).is_empty() {
+        let _ = std::fs::write(app.data_dir.join("check.pending"), b"1");
+    }
 }
 
 /// Test one guide's source, or the URL handed over in check-source.txt ("@form").
