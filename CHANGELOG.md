@@ -1,0 +1,97 @@
+# Changelog
+
+Every change to EPGArr is written down here, newest first. Each release lists
+what was added, changed, fixed and removed, and anything you must do when you
+update.
+
+## 0.2.0 — 2026-11-27: one program, no PHP
+
+### Changed
+- **The web pages are now part of the program.** `epg-loader serve` serves every
+  page (Dashboard, Guides, TV Guide, Activity, Settings) and runs the rebuild
+  schedule in the same process. PHP and nginx are gone.
+- The Docker image holds only the program and the page assets (`/app/assets`).
+  It still runs as `www-data` (uid 82) and listens on port 80, so
+  `docker-compose.yml` is unchanged.
+- Guide files and custom logos are served straight from `/data/guides/` and
+  `/data/logos/` (`EPG_OUTPUT_DIR=/data`); the guide addresses stay the same.
+- Builds, source tests and background lookups started from the pages run as
+  child processes of the program, with their logs in `/data/logs/`.
+- Page scripts moved out of the pages into static files
+  (`assets/page-*.js`, `assets/tvguide.js`).
+- Uploaded channel logos are always stored as PNG, at most 512 px (decoded by
+  the program; no GD needed).
+- Settings › Advanced › System checks now shows "All good" or the number of
+  problems; the scheduler check reads the program's own state.
+- The GitHub build check compiles with `--locked` and no longer checks PHP.
+
+### Added
+- A backup is made every day by the program itself (and at start-up when the
+  newest is more than a day old), not only when Settings is opened.
+- Two backups made in the same second no longer overwrite each other.
+- Settings that fail validation keep the values you typed.
+- Pages send `X-Content-Type-Options`, `X-Frame-Options` and `Referrer-Policy`
+  headers; the session cookie is `HttpOnly` and `SameSite=Lax`.
+
+### Removed
+- All PHP pages (`*.php`, `epg_lib.php`), `docker/nginx.conf` and
+  `docker/php.ini`.
+
+### When you update
+- Rebuild the image: `git pull` then `docker compose up -d --build`.
+- Users, passwords, guides, settings, backups and custom logos carry over.
+  Everyone has to log in once more (sessions are new).
+
+## 0.1.2 — 2026-11-27: Docker only, GitHub
+
+### Added
+- `Dockerfile`, `docker-compose.yml` and `docker/entrypoint.sh`: EPGArr runs as
+  a single container with all data in the `/data` volume.
+- GitHub build check (`.github/workflows/build.yml`): builds and tests the
+  program and builds the Docker image on every push.
+- `.gitattributes` keeps line endings exactly as written.
+
+### Removed
+- The Setup page, the cron schedule, the Rust installer and host path
+  detection (the container sets the paths).
+
+## 0.1.1 — 2026-11-26
+
+### Added
+- TV Guide: programme search (Channels | Programmes), with results grouped as
+  on now, later today and upcoming.
+- Settings › Backups: daily and manual backups of settings, guides, channel
+  overrides, users and custom logos; download, restore, upload a file to
+  restore, delete. The newest 30 are kept; a backup is made before every
+  restore.
+
+### Changed
+- Activity: "Recently looked up" shows one full row of posters.
+
+### Fixed
+- Dashboard was slow: poster and logo coverage is now cached until the next
+  build instead of scanning every guide on each visit.
+- Memory use on very large sources (several GB): guide output is streamed to
+  disk, and background lookups use the saved title lists instead of reading the
+  sources again.
+
+## 0.1.0 — 2026-11-26: first snapshot
+
+The state of EPGArr when version history started.
+
+- Several guides, each with its own XMLTV source, days to keep, rebuild
+  interval and logo country; drag-and-drop order; `.xml` and `.xml.gz` per
+  guide, named after the guide.
+- Channel logos from the source, channel overrides, tv-logos and iptv-org;
+  set a channel's logo from the TV Guide by upload or URL.
+- Posters, ratings and descriptions from TMDB, IMDb star ratings, TVmaze for
+  series and TheSportsDB for sports; background lookups with progress on the
+  Activity page.
+- One main category per programme (Movie, Series, News, Sports, Kids, Music,
+  Documentary).
+- TV Guide viewer: 2-hour view, guide selector, group filters in a one-line
+  scrollable toolbar, details for programmes already started.
+- Dashboard with coverage and Recent Builds (full stats per run).
+- Users with username and password; only the login page is visible until you
+  log in.
+- Renamed to EPGArr, with its own icon.

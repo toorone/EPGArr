@@ -40,7 +40,7 @@ git pull
 docker compose up -d --build
 ```
 
-The database is upgraded automatically when the container starts. Your data in `./data` stays.
+The database is upgraded automatically when the container starts. Your data in `./data` stays. Read [CHANGELOG.md](CHANGELOG.md) for what changed and anything to do when updating.
 
 Coming from the PHP version of the container: nothing to do. Users and passwords, guides, backups and custom logos carry over and the guide addresses stay the same; everyone just logs in once more.
 
@@ -66,4 +66,4 @@ Settings › Backups makes a backup every day and before every restore (settings
 - Settings › Advanced › System checks: program, scheduler, data volume and connection tests.
 - `./data/logs/`: logs of builds and tests started from the pages.
 
-The program itself is described in [epg-loader/README.md](epg-loader/README.md).
+The program itself is described in [epg-loader/README.md](epg-loader/README.md). Every change is listed in [CHANGELOG.md](CHANGELOG.md).
