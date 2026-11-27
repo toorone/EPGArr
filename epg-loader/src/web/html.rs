@@ -79,7 +79,8 @@ pub fn flashes(list: &[(String, String)]) -> String {
 /// A full page: head, sidebar, optional toolbar (page actions), flashes and the body.
 pub fn page(ctx: &Ctx, active: &str, title: &str, tools: &str, body: &str) -> String {
     let item = |key: &str, href: &str, label: &str, ic: &str| {
-        let on = key == active;
+        // Guides is part of Settings.
+        let on = key == active || (key == "settings" && active == "guides");
         format!(
             r#"<a class="item{cls}" href="{href}"{cur} title="{label}">{icon}<span class="label">{label}</span></a>"#,
             cls = if on { " active" } else { "" },
@@ -103,14 +104,13 @@ pub fn page(ctx: &Ctx, active: &str, title: &str, tools: &str, body: &str) -> St
         format!(r#"<div class="page-head page-tools">{tools}</div>"#)
     };
     format!(
-        r#"{head}<body><div class="layout"><nav class="nav" aria-label="Main"><div class="brand"><span class="brand-mark">{logo}</span><span>{APP_NAME}</span></div>{a}{b}{c}{d}{e}<div class="nav-spacer"></div>{nav_auth}</nav><div class="content">{top}<main class="page-{active}{wide}">{fl}{body}</main></div></div>{busy}</body></html>"#,
+        r#"{head}<body><div class="layout"><nav class="nav" aria-label="Main"><div class="brand"><span class="brand-mark">{logo}</span><span>{APP_NAME}</span></div>{a}{b}{c}{d}<div class="nav-spacer"></div>{nav_auth}</nav><div class="content">{top}<main class="page-{active}{wide}">{fl}{body}</main></div></div>{busy}</body></html>"#,
         head = head(title),
         logo = icon("logo"),
         a = item("dashboard", "./", "Dashboard", "dashboard"),
         b = item("guide", "tv", "TV Guide", "grid"),
         c = item("activity", "activity", "Activity", "pulse").replacen("<a class=\"item", "<a id=\"nav-activity\" class=\"item", 1),
         d = item("settings", "settings", "Settings", "settings"),
-        e = item("guides", "guides", "Guides", "list"),
         wide = if active == "guide" { " wide" } else { "" },
         fl = flashes(&ctx.flashes),
         busy = if ctx.user.is_some() { BUSY_SCRIPT } else { "" },

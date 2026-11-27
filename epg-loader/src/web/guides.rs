@@ -74,7 +74,11 @@ pub async fn page_get(State(app): State<Shared>, headers: HeaderMap, Query(q): Q
         q.get("edit").and_then(|id| id.parse::<i64>().ok()).and_then(|id| guides.iter().find(|g| g.id == id)).map(|g| form_data(&headers, g))
     };
     let tools = r#"<button type="button" class="button" data-add>+ Add guide</button>"#;
-    let body = render(&app, &ctx, &headers, &guides, open);
+    let body = format!(
+        r#"<div class="set-layout">{nav}<div class="set-panels set-panels-wide">{}</div></div>"#,
+        render(&app, &ctx, &headers, &guides, open),
+        nav = super::settings::tabs_nav(true),
+    );
     html_page(&ctx, page(&ctx, "guides", "Guides", tools, &body))
 }
 

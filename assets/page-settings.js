@@ -1,7 +1,7 @@
 /* EPGArr Settings page script. */
     (function () {
       var form = document.getElementById('settings-form');
-      var tabs = form.querySelectorAll('.set-tabs a');
+      var tabs = form.querySelectorAll('.set-tabs a[data-tab]');
       var panels = form.querySelectorAll('.set-panel');
       function show(name) {
         var found = false;

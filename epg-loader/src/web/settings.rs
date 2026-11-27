@@ -415,9 +415,8 @@ pub async fn page_get(State(app): State<Shared>, headers: HeaderMap, Query(q): Q
 <form method="post" id="bk-delete" onsubmit="return confirm('Delete this backup?')">{csrf}<input type="hidden" name="action" value="backup_delete"></form>
 <form method="post" id="bk-upload" enctype="multipart/form-data" onsubmit="return confirm('Restore from this file? Your current state is backed up first.')">{csrf}<input type="hidden" name="action" value="backup_upload"></form>
 <form method="post" autocomplete="off" id="settings-form" class="set-layout">{csrf}<input type="hidden" name="action" value="save_settings">
-<nav class="set-tabs" aria-label="Settings sections"><a href="#artwork" data-tab="artwork">{i_grid}Artwork &amp; info</a><a href="#logos" data-tab="logos">{i_tv}Channel logos</a><a href="#schedule" data-tab="schedule">{i_hist}Schedule</a><a href="#users" data-tab="users">{i_user}Users</a><a href="#backups" data-tab="backups">{i_hist}Backups</a><a href="#advanced" data-tab="advanced">{i_set}Advanced</a></nav>
+{tabs_nav}
 <div class="set-panels">
-<p class="hint set-pointer">XMLTV sources, days to keep and guide addresses are on the <a href="guides">Guides</a> page.</p>
 <section class="card set-panel" id="artwork"><h2>Artwork &amp; info</h2>
 <label for="tmdb_api_key">TMDB API key or read access token</label>
 <input type="password" id="tmdb_api_key" name="tmdb_api_key" value="" autocomplete="new-password" placeholder="{key_ph}">
@@ -478,11 +477,7 @@ pub async fn page_get(State(app): State<Shared>, headers: HeaderMap, Query(q): Q
 <div class="save-bar" id="save-bar" hidden><span>You have unsaved changes.</span><button type="button" class="ghost" id="discard">Discard</button><button type="submit">Save settings</button></div>
 </form>
 <script src="assets/page-settings.js?v={version}"></script>"##,
-        i_grid = icon("grid"),
-        i_tv = icon("tv"),
-        i_hist = icon("history"),
-        i_user = icon("user"),
-        i_set = icon("settings"),
+        tabs_nav = tabs_nav(false),
         key_ph = esc(&key_ph),
         language = esc(&v("language", "en-US")),
         rating_country = esc(&v("rating_country", "US")),
@@ -504,6 +499,35 @@ pub async fn page_get(State(app): State<Shared>, headers: HeaderMap, Query(q): Q
         program = esc(&program),
     );
     html_page(&ctx, page(&ctx, "settings", "Settings", "", &body))
+}
+
+/// The Settings section list. Guides is its own page (/guides) shown inside
+/// Settings; the other sections switch in place on /settings.
+pub fn tabs_nav(on_guides: bool) -> String {
+    let sections = [
+        ("artwork", "grid", "Artwork &amp; info"),
+        ("logos", "tv", "Channel logos"),
+        ("schedule", "history", "Schedule"),
+        ("users", "user", "Users"),
+        ("backups", "history", "Backups"),
+        ("advanced", "settings", "Advanced"),
+    ];
+    let guides = format!(
+        r#"<a href="guides"{cur}>{}Guides</a>"#,
+        icon("list"),
+        cur = if on_guides { r#" class="active" aria-current="page""# } else { "" }
+    );
+    let rest: String = sections
+        .iter()
+        .map(|(id, ic, label)| {
+            if on_guides {
+                format!(r#"<a href="settings#{id}">{}{label}</a>"#, icon(ic))
+            } else {
+                format!(r##"<a href="#{id}" data-tab="{id}">{}{label}</a>"##, icon(ic))
+            }
+        })
+        .collect();
+    format!(r#"<nav class="set-tabs" aria-label="Settings sections">{guides}{rest}</nav>"#)
 }
 
 fn download(ctx: &Ctx, app: &App, name: &str) -> Response {

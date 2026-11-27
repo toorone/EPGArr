@@ -7,7 +7,9 @@ update.
 ## Unreleased
 
 ### Changed
-- Menu order: Dashboard, TV Guide, Activity, Settings, Guides.
+- Menu: Dashboard, TV Guide, Activity, Settings. **Guides moved into
+  Settings**: it is the first section in Settings' list (still at `/guides`),
+  next to Artwork & info, Channel logos, Schedule, Users, Backups and Advanced.
 - **No more `.php` in any address.** The pages are now `/`, `/guides`, `/tv`
   (TV Guide), `/activity` and `/settings`; the page scripts use `/api/guide`
   and `/api/logo`. The old addresses (`index.php`, `guides.php`, `guide.php`,
