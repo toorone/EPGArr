@@ -4,12 +4,12 @@
 # matches "Evening News" but not "Newsroom". Rules are tried top to bottom and
 # the first match wins.
 #
-# The live copy is rules.toml in the data folder (written there on first run;
-# the setup page shows where that is). Edit that one. This file in the source
+# The live copy is rules.toml in the data folder (/data/rules.toml, written
+# there on first run). Edit that one. This file in the source
 # folder is the built-in default.
 #
 # How a programme's main group is chosen, in order:
-#   1. the channel's group in the channel overrides (settings page)
+#   1. the channel's group in the channel overrides
 #   2. the source's own categories (an exact group name, then [[category_rule]])
 #   3. TMDB media type and genres
 #   4. [[keyword_rule]] on the programme title

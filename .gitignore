@@ -1,17 +1,8 @@
-# EPGArr: generated files and anything that is not code. Code history only.
-/epg.xml
-/epg.xml.gz
-/status*.json
-/guides/
-/logs/
-/logos/
-/setup-paths.php
+# EPGArr: code only. No data, logs or build output.
+/data/
 epg-loader/target/
 *.tmp
-*.lock
 *.log
 .DS_Store
 Thumbs.db
 desktop.ini
-!epg-loader/Cargo.lock
-/data/

@@ -173,7 +173,7 @@ struct Cli {
     /// Make no TMDB requests (results already in the cache are still used)
     #[arg(long, global = true)]
     no_tmdb: bool,
-    /// build: do nothing unless refresh_hours have passed since the last run (for cron)
+    /// build: do nothing unless refresh_hours have passed since the last run (for the schedule)
     #[arg(long, global = true)]
     if_due: bool,
     /// build / check: only this guide (its slug, e.g. main); default: every enabled guide
@@ -213,7 +213,7 @@ struct Opts {
     no_tmdb: bool,
 }
 
-/// Written to <output_dir>/status.json for index.html, and stored as the
+/// Written to <output_dir>/status.json for the pages, and stored as the
 /// run summary in epg.db. Never contains the TMDB key or the source URL.
 #[derive(Debug, Default, Serialize, Deserialize)]
 #[serde(default)]
@@ -709,7 +709,7 @@ async fn build_once(conn: &Connection, cfg: &Config, target: &Target, opts: Opts
 }
 
 /// An exclusive advisory lock on <dir>/build.lock, released automatically
-/// when the process exits. settings.php checks the same file with flock().
+/// when the process exits. The pages check the same file.
 fn acquire_lock(dir: &Path) -> Result<Option<File>> {
     acquire_named_lock(dir, "build.lock")
 }
@@ -798,7 +798,7 @@ const GUIDE_KEEP_PAST_SECS: i64 = 86_400;
 /// Length used when a programme has no usable stop time and nothing follows it.
 const GUIDE_DEFAULT_SECS: i64 = 1_800;
 
-/// Store the enriched channels and programmes for guide.php. Called only
+/// Store the enriched channels and programmes for the TV Guide page. Called only
 /// after epg.xml was written, so a cancelled or failed build keeps the old ones.
 fn store_guide(
     conn: &Connection,

@@ -8,7 +8,7 @@ epg-loader takes an XMLTV guide and fills in what media servers show best (Emby,
 - **Posters, age ratings and short descriptions** from TMDB. They are added only where the programme has none.
 - **One main category per programme** (Movie, Series, News, Sports, Kids, Music or Documentary), so your media server can sort the guide.
 
-Everything else in the source is copied through unchanged. The result is `epg.xml` and `epg.xml.gz` in your web folder, next to `index.html`, plus a `status.json` that the guide page reads.
+Everything else in the source is copied through unchanged. Each guide is written as `guides/<name>.xml` and `.xml.gz` in `/data`, and served by the program at `/guides/<name>.xml`.
 
 ## Installing
 
@@ -24,7 +24,7 @@ EPGArr runs only as a Docker container; see the README in the project root for t
 
 The container runs `epg-loader serve`: the web pages on port 80 (`EPGARR_LISTEN`), plus the schedule, which rebuilds each guide when its interval has passed and resumes the background lookups. Builds and tests started from the pages run as child processes of the program. The program is given `EPG_LOADER_DIR=/data` and `EPG_OUTPUT_DIR=/data`; guide files are served from `/data/guides/` and custom logos from `/data/logos/`.
 
-`epg.db` is SQLite in WAL mode with a busy timeout, so the pages and a running build can use it at the same time. The TMDB key is never written to `status.json`, the logs or anything in the web folder, and the pages only show its last 4 characters.
+`epg.db` is SQLite in WAL mode with a busy timeout, so the pages and a running build can use it at the same time. The TMDB key is never written to `status.json`, the logs or the guide files, and the pages only show its last 4 characters.
 
 ## Several guides
 
@@ -83,14 +83,18 @@ News and sports programmes are not looked up on TMDB, because they rarely match 
 epg-loader --data-dir DIR [--output-dir DIR] [--dry-run] [--no-tmdb] [--if-due] <command>
 
   build     build once (the default)
-  watch     keep running; rebuild every refresh_hours (alternative to cron)
+  serve     the web pages and the schedule (what the container runs)
+  watch     the schedule only, without the pages
   migrate   create or upgrade epg.db and write rules.toml
   check     test internet, the TMDB key and the source URL; prints JSON
   info      print version and expected schema version as JSON
 
   --data-dir / EPG_LOADER_DIR     the data folder (required)
-  --output-dir / EPG_OUTPUT_DIR   where epg.xml goes (else the output_dir setting)
-  --if-due                        build only if refresh_hours have passed (for cron)
+  --output-dir / EPG_OUTPUT_DIR   where guides/ and logos/ go (else the output_dir setting)
+  --guide SLUG                    build or check one guide only
+  --listen / EPGARR_LISTEN        serve: address to listen on (default 0.0.0.0:80)
+  --assets / EPGARR_ASSETS        serve: page assets folder (default /app/assets)
+  --if-due                        build only the guides whose interval has passed
   --dry-run                       write no output and record no run
   --no-tmdb                       make no TMDB requests (cached results still used)
 ```
@@ -101,17 +105,19 @@ The `TMDB_API_KEY` environment variable overrides the saved key.
 
 | File | Purpose |
 |---|---|
-| `src/main.rs` | CLI, build pipeline, lock, status and run history |
+| `src/main.rs` | CLI, build pipeline, schedule, lock, status and run history |
+| `src/web/` | The web pages: login and users, Dashboard, Guides, TV Guide, Activity, Settings, backups, channel logo uploads |
 | `src/db.rs` | epg.db schema, migrations, settings, overrides, runs, one-time import of old toml files |
 | `src/checks.rs` | `check` command (connection and source tests) |
 | `src/xmltv.rs` | Streaming parse and pass-through rewrite (quick-xml) |
 | `src/logos.rs` | iptv-org logo matching by channel id or display name |
 | `src/tmdb.rs` | TMDB search, ratings, cache, rate limiting |
+| `src/imdb.rs`, `tvmaze.rs`, `sportsdb.rs`, `tvlogos.rs` | IMDb ratings, TVmaze, TheSportsDB, tv-logos |
+| `src/enrich.rs` | Background lookups |
 | `src/groups.rs` | Group selection and `rules.toml` |
 | `src/source.rs` | Download, gzip detection by magic bytes |
 | `src/config.rs`, `timeutil.rs`, `output.rs` | Settings, XMLTV dates, atomic writes |
 | `rules.toml` | Default category rules, built in and copied to the data folder |
-| `config.example.toml` | Optional one-time import |
 | `tests/sample.xml` | Sample XMLTV for the unit tests |
 
 ## Troubleshooting

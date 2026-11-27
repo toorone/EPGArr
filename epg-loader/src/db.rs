@@ -1,7 +1,7 @@
 //! epg.db: settings, channel overrides, TMDB cache, run history.
 //!
 //! The Rust binary owns the schema: it creates and migrates tables on
-//! startup. settings.php only reads and writes rows.
+//! startup. The pages only read and write rows.
 
 use anyhow::{Context, Result};
 use rusqlite::{params, Connection, OptionalExtension};
@@ -67,7 +67,7 @@ const MIGRATIONS: &[&str] = &[
         display_name TEXT NOT NULL DEFAULT ''
     );
     "#,
-    // 2: enriched guide for guide.php, replaced in one transaction per successful build
+    // 2: enriched guide for the TV Guide page, replaced in one transaction per successful build
     r#"
     CREATE TABLE guide_channels (
         pos        INTEGER PRIMARY KEY,
@@ -514,7 +514,7 @@ pub fn guides(conn: &Connection) -> Result<Vec<Guide>> {
     Ok(rows.collect::<rusqlite::Result<Vec<Guide>>>()?)
 }
 
-/// "US Locals!" -> "us-locals": the guide's file name. Same rules as epg_slugify() in epg_lib.php.
+/// "US Locals!" -> "us-locals": the guide's file name.
 pub fn slugify(name: &str) -> String {
     let mut s = String::new();
     for c in name.to_lowercase().chars() {

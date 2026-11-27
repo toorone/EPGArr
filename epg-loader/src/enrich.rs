@@ -29,7 +29,7 @@ use crate::{
 
 /// Held while enrich runs; the dashboard checks it with flock().
 pub const LOCK_FILE: &str = "enrich.lock";
-/// Progress for the dashboard, in the data dir (not the web folder).
+/// Progress for the dashboard, in the data dir (not the guide files folder).
 pub const STATUS_FILE: &str = "enrich_status.json";
 /// The dashboard's Stop button creates this file in the data dir.
 pub const CANCEL_FILE: &str = "enrich-cancel";

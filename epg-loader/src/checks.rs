@@ -1,4 +1,4 @@
-//! `epg-loader check`: connectivity tests for the setup page. Prints JSON.
+//! `epg-loader check`: connection tests for Settings › Advanced and the Guides page. Prints JSON.
 //! Never includes the TMDB key or the source URL in its output.
 
 use rusqlite::Connection;

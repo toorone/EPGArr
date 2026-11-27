@@ -24,6 +24,13 @@ update.
 - The GitHub build check publishes the image to
   `ghcr.io/toorone/epgarr:latest` (and a tag per commit) on every push to `main`.
 
+### Removed
+- Old development leftovers: `epg-loader/config.example.toml`, ignore rules
+  for the old web folder (`epg.xml`, `status*.json`, `setup-paths.php`), and
+  references to the Setup page, `settings.php`, `index.html`, the web folder
+  and cron in comments and docs. The program README now lists `serve`,
+  `--guide`, `--listen` and `--assets` and the newer source files.
+
 ### Fixed
 - TheSportsDB lookups all failed with HTTP 403: TheSportsDB switched off the old
   free key `3`. The free key is now `123`, and a saved `3` is treated as `123`.

@@ -1,5 +1,5 @@
 //! Settings. They live in the `settings` table of epg.db (edited from
-//! settings.php). An old config.toml / channels.toml can be imported once.
+//! the Settings page). An old config.toml / channels.toml can be imported once.
 
 use anyhow::{bail, Context, Result};
 use serde::Deserialize;
@@ -31,7 +31,7 @@ impl LogoSource {
     }
 }
 
-/// Setting keys stored in the database. settings.php uses the same names.
+/// Setting keys stored in the database. The Settings page uses the same names.
 #[allow(dead_code)]
 pub const KEYS: [&str; 26] = [
     "source_url",
@@ -69,7 +69,7 @@ pub struct Config {
     pub source_url: String,
     /// TMDB v3 API key or v4 read access token. Empty disables TMDB.
     pub tmdb_api_key: String,
-    /// Folder that receives epg.xml, epg.xml.gz and status.json (the web folder).
+    /// Folder that receives epg.xml, epg.xml.gz and status.json (/data in the container).
     pub output_dir: PathBuf,
     /// Only read from an imported config.toml; the cache now lives in epg.db.
     pub cache_dir: PathBuf,
