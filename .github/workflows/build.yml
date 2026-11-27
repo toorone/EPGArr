@@ -21,21 +21,9 @@ jobs:
         with:
           workspaces: epg-loader
       - name: Build
-        run: cargo build --release
+        run: cargo build --release --locked
       - name: Tests
-        run: cargo test --release
-
-  pages:
-    name: Pages (PHP syntax)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Check every PHP file
-        run: |
-          shopt -s nullglob
-          files=(*.php)
-          if [ ${#files[@]} -eq 0 ]; then echo "No PHP files"; exit 0; fi
-          for f in "${files[@]}"; do php -l "$f"; done
+        run: cargo test --release --locked
 
   docker:
     name: Docker image

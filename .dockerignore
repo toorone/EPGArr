@@ -1,10 +1,10 @@
 .git
+.github
 .gitignore
 data
 guides
 logos
 logs
-setup-paths.php
 epg-loader/target
 **/*.tmp
 **/*.log

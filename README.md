@@ -2,7 +2,7 @@
 
 EPGArr builds XMLTV guides for your media server (Emby, Plex, Jellyfin or any XMLTV client): it takes your XMLTV sources and fills in channel logos (tv-logos, iptv-org), posters, ratings and descriptions (TMDB, TVmaze, TheSportsDB), IMDb star ratings and one main category per programme. Several guides, a TV Guide viewer, background lookups, users and backups are all in the web pages.
 
-EPGArr runs as a single Docker container.
+EPGArr runs as a single Docker container with one program in it: `epg-loader` serves the web pages and rebuilds the guides on their schedule (no PHP, no web server to set up).
 
 ## Install
 
@@ -31,7 +31,7 @@ services:
       - ./data:/data          # database, users, backups, logs, guide files, logos
 ```
 
-Everything that matters is in `./data`. The container runs as user `www-data` (uid 82) and fixes the ownership of `./data` when it starts.
+Everything that matters is in `./data`. The program runs as user `www-data` (uid 82, the same as earlier versions) and the container fixes the ownership of `./data` when it starts.
 
 ## Update
 
@@ -41,6 +41,8 @@ docker compose up -d --build
 ```
 
 The database is upgraded automatically when the container starts. Your data in `./data` stays.
+
+Coming from the PHP version of the container: nothing to do. Users and passwords, guides, backups and custom logos carry over and the guide addresses stay the same; everyone just logs in once more.
 
 ## Moving an existing (non-Docker) install over
 
@@ -60,7 +62,7 @@ Settings › Backups makes a backup every day and before every restore (settings
 
 ## Logs and problems
 
-- `docker logs epgarr`: the scheduler (guide builds and background lookups).
+- `docker logs epgarr`: the program (page requests are not logged; scheduled guide builds and background lookups are).
 - Settings › Advanced › System checks: program, scheduler, data volume and connection tests.
 - `./data/logs/`: logs of builds and tests started from the pages.
 

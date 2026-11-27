@@ -18,13 +18,13 @@ EPGArr runs only as a Docker container; see the README in the project root for t
 
 | In the container | What |
 |---|---|
-| `/app/www` | The pages (`*.php`, `assets/`). `guides/` and `logos/` link into `/data`. Nothing secret. |
+| `/app/assets` | The pages' style sheet, scripts and icon. The pages themselves are built into the program. |
 | `/usr/local/bin/epg-loader` | This program, built into the image. |
 | `/data` (the volume) | `epg.db` (settings including the TMDB key, guides, overrides, TMDB cache, run history), `users.json`, `backups/`, `logs/`, `cache/`, `rules.toml`, the guide files in `guides/` and custom logos in `logos/custom/`. |
 
-The container runs `epg-loader watch`, which rebuilds each guide when its interval has passed and resumes the background lookups; the pages start builds and tests in the background. The program is given `EPG_LOADER_DIR=/data` and `EPG_OUTPUT_DIR=/app/www`.
+The container runs `epg-loader serve`: the web pages on port 80 (`EPGARR_LISTEN`), plus the schedule, which rebuilds each guide when its interval has passed and resumes the background lookups. Builds and tests started from the pages run as child processes of the program. The program is given `EPG_LOADER_DIR=/data` and `EPG_OUTPUT_DIR=/data`; guide files are served from `/data/guides/` and custom logos from `/data/logos/`.
 
-`epg.db` is SQLite in WAL mode with a busy timeout, so the pages and a running build can use it at the same time. Only the program creates or migrates tables; the pages only read and write rows. The TMDB key is never written to `status.json`, the logs or anything in the web folder, and the pages only show its last 4 characters.
+`epg.db` is SQLite in WAL mode with a busy timeout, so the pages and a running build can use it at the same time. The TMDB key is never written to `status.json`, the logs or anything in the web folder, and the pages only show its last 4 characters.
 
 ## Several guides
 
