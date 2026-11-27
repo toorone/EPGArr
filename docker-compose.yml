@@ -1,14 +1,13 @@
-# EPGArr: docker compose up -d --build
+# EPGArr: docker compose pull && docker compose up -d
 # Then open http://<server>:8080 and create your account.
 services:
   epgarr:
-    build: .
-    image: epgarr:latest
+    image: ghcr.io/toorone/epgarr:latest
     container_name: epgarr
     restart: unless-stopped
     ports:
       - "8080:80"
     environment:
-      - TZ=America/New_York
+      - TZ=America/New_York   # your time zone
     volumes:
-      - ./data:/data
+      - ./data:/data          # database, users, backups, logs, guide files, logos

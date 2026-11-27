@@ -4,6 +4,22 @@ Every change to EPGArr is written down here, newest first. Each release lists
 what was added, changed, fixed and removed, and anything you must do when you
 update.
 
+## Unreleased
+
+### Changed
+- Install and update from the published image: `docker pull
+  ghcr.io/toorone/epgarr:latest` (README and `docker-compose.yml` now use it
+  instead of building from the source).
+
+### Added
+- The GitHub build check publishes the image to
+  `ghcr.io/toorone/epgarr:latest` (and a tag per commit) on every push to `main`.
+
+### When you update
+- The repository is private, so its image is too: run
+  `docker login ghcr.io` once on the server with a token that has
+  `read:packages`.
+
 ## 0.2.0 — 2026-11-27: one program, no PHP
 
 ### Changed

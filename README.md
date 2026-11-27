@@ -6,21 +6,24 @@ EPGArr runs as a single Docker container with one program in it: `epg-loader` se
 
 ## Install
 
+The image is published on GitHub as `ghcr.io/toorone/epgarr:latest` (every push to `main` updates it).
+
 ```bash
-git clone <this repository> epgarr
-cd epgarr
-docker compose up -d --build
+docker pull ghcr.io/toorone/epgarr:latest
 ```
 
-Open `http://<server>:8080`, create your account, then add a guide on the **Guides** page and press **Build now**. Each guide's address (e.g. `http://<server>:8080/guides/us-locals.xml`, or `.xml.gz`) goes into your media server as an XMLTV guide source.
+The repository and its image are private, so log in to GitHub's registry once on the server first. Use a [personal access token](https://github.com/settings/tokens) with the `read:packages` scope as the password:
 
-`docker-compose.yml`:
+```bash
+docker login ghcr.io -u toorone
+```
+
+Then make a folder for EPGArr with this `docker-compose.yml` in it, and start it:
 
 ```yaml
 services:
   epgarr:
-    build: .
-    image: epgarr:latest
+    image: ghcr.io/toorone/epgarr:latest
     container_name: epgarr
     restart: unless-stopped
     ports:
@@ -31,16 +34,32 @@ services:
       - ./data:/data          # database, users, backups, logs, guide files, logos
 ```
 
+```bash
+docker compose up -d
+```
+
+Without Compose, the same in one command:
+
+```bash
+docker run -d --name epgarr --restart unless-stopped -p 8080:80 -e TZ=America/New_York -v "$PWD/data:/data" ghcr.io/toorone/epgarr:latest
+```
+
+Open `http://<server>:8080`, create your account, then add a guide on the **Guides** page and press **Build now**. Each guide's address (e.g. `http://<server>:8080/guides/us-locals.xml`, or `.xml.gz`) goes into your media server as an XMLTV guide source.
+
 Everything that matters is in `./data`. The program runs as user `www-data` (uid 82, the same as earlier versions) and the container fixes the ownership of `./data` when it starts.
 
 ## Update
 
 ```bash
-git pull
-docker compose up -d --build
+docker compose pull
+docker compose up -d
 ```
 
+(Without Compose: `docker pull ghcr.io/toorone/epgarr:latest`, then remove the container and run the `docker run` line again.)
+
 The database is upgraded automatically when the container starts. Your data in `./data` stays. Read [CHANGELOG.md](CHANGELOG.md) for what changed and anything to do when updating.
+
+To build the image yourself instead: clone the repository and run `docker build -t ghcr.io/toorone/epgarr:latest .` in it.
 
 Coming from the PHP version of the container: nothing to do. Users and passwords, guides, backups and custom logos carry over and the guide addresses stay the same; everyone just logs in once more.
 
@@ -49,7 +68,7 @@ Coming from the PHP version of the container: nothing to do. Users and passwords
 1. Stop the old schedule: `crontab -e` and remove the line ending in `# epg-loader`.
 2. Copy the old data folder (usually `/var/lib/epg-loader`) into `./data`: `epg.db`, `users.json` (or `admin.json`), `rules.toml` and `backups/` are what matter.
 3. Copy custom channel logos from the old web folder's `logos/custom/` to `./data/logos/custom/`.
-4. `docker compose up -d --build`, log in with your existing account, and press **Build all guides now** on the Activity page.
+4. `docker compose up -d`, log in with your existing account, and press **Build all guides now** on the Activity page.
 5. Point your media server at the new guide addresses shown on the Guides page.
 
 ## Behind a reverse proxy
