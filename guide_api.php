@@ -38,7 +38,7 @@ try {
 }
 $has = $db->query("SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name IN ('guide_channels', 'guide_programmes')")->fetchColumn();
 if ((int)$has < 2) {
-    out(['empty' => true, 'reason' => 'The guide tables do not exist yet. Build the program again, then build the guide.']);
+    out(['empty' => true, 'reason' => 'The guide tables do not exist yet. Restart the container, then build the guides.']);
 }
 
 // Which guide: ?guide=slug once the program stores several guides; otherwise the only one.

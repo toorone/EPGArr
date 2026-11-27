@@ -3,7 +3,7 @@
  * EPGArr guides: each guide has its own XMLTV source and its own output
  * file, guides/<slug>.xml, named after the guide (renaming changes it).
  *
- * Until the program creates the guides table (Build the program), the single
+ * Until the program has created the guides table (on its first start), the single
  * source from the settings is shown as the "Main" guide and can be edited,
  * but guides cannot be added or removed yet.
  */
@@ -139,7 +139,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $fatal === null) {
         // Drag and drop on this page: the new order, as guide ids. JSON in, JSON out.
         header('Content-Type: application/json');
         if (!$editable) {
-            echo json_encode(['error' => 'Reordering needs the new program (Build the program).']);
+            echo json_encode(['error' => 'Reordering is available once the program has started once.']);
             exit;
         }
         $ids = array_values(array_filter(array_map('intval', (array)($_POST['ids'] ?? [])), fn($v) => $v > 0));
@@ -163,7 +163,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $fatal === null) {
         [$f, $errors] = guide_input();
         $isNew = (int)($_POST['id'] ?? 0) === 0;
         if ($isNew && !$editable) {
-            $errors[] = 'Adding guides needs the new program: open Setup and press Build the program first.';
+            $errors[] = 'Adding guides is available once the program has started once (restart the container).';
         } elseif (!$isNew && $g === null) {
             $errors[] = 'That guide no longer exists.';
         }
@@ -285,11 +285,11 @@ epg_layout_start($p, 'guides', 'Guides', 'Each guide has its own XMLTV source an
     <div class="card">
       <h2>Not set up yet</h2>
       <p class="bad-text"><?= h($fatal) ?></p>
-      <p><a href="setup.php">Open the setup page</a>. It checks everything and finishes the setup for you.</p>
+      <p>Check that the container is running and the /data volume is writable (Settings &rsaquo; Advanced &rsaquo; System checks).</p>
     </div>
 <?php else: ?>
     <?php if (!$editable): ?>
-    <div class="flash warn">To add more guides, open <a href="setup.php">Setup</a> and press <strong>Build the program</strong>. Until then you can edit the one guide you have.</div>
+    <div class="flash warn">The program has not created its guide list yet; restart the container. Until then you can edit the one guide you have.</div>
     <?php endif; ?>
 
     <dialog class="g-dialog" id="g-dialog" aria-labelledby="g-title">

@@ -151,7 +151,7 @@ epg_layout_start($p, 'activity', 'Activity', 'Background TMDB lookups and guide 
     <?php if (!$supported): ?>
     <div class="card act-banner act-unavailable">
       <h2><?= epg_icon('pulse') ?>Not available yet</h2>
-      <p>The installed epg-loader program does not have background lookups yet. Open <a href="setup.php">Setup</a> and press <strong>Build the program</strong> once, then come back here.</p>
+      <p>The program in this image does not support background lookups. Update the EPGArr image and restart the container.</p>
     </div>
     <?php endif; ?>
 

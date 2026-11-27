@@ -1,6 +1,6 @@
 <?php
 /*
- * Shared code for settings.php and setup.php.
+ * Shared code for the EPGArr pages (Docker image).
  *
  * Nothing here is hard-coded: the web folder is __DIR__, the base URL comes
  * from the request, the PHP user and home from posix, and the data dir,
@@ -19,9 +19,6 @@ if (realpath((string)($_SERVER['SCRIPT_FILENAME'] ?? '')) === __FILE__) {
 // The name people see. Internal names (the epg-loader program and folder, the crontab tag) stay as they are.
 const EPG_APP_NAME = 'EPGArr';
 const EPG_GROUPS = ['Movie', 'Series', 'News', 'Sports', 'Kids', 'Music', 'Documentary'];
-const EPG_PATHS_FILE = __DIR__ . '/setup-paths.php';
-const EPG_DATA_DIR_NAME = 'epg-loader';
-const EPG_WEB_BASE_NAMES = ['public_html', 'www', 'htdocs', 'html', 'web', 'webroot'];
 
 function h(?string $s): string
 {
@@ -217,319 +214,59 @@ function epg_env_prefix(array $env): string
     return implode(' ', $parts) . ' ';
 }
 
-// ---------------------------------------------------------------- path helpers
-
-function epg_norm(string $p): string
-{
-    $p = rtrim(str_replace('\\', '/', $p), '/');
-    return $p === '' ? '/' : $p;
-}
-
-function epg_inside(string $path, string $dir): bool
-{
-    $path = epg_norm($path);
-    $dir = epg_norm($dir);
-    return $path === $dir || str_starts_with($path, $dir === '/' ? '/' : $dir . '/');
-}
-
-/** Folders that are (or are likely to be) served by the web server. */
-function epg_web_roots(): array
-{
-    $roots = [];
-    $doc = realpath((string)($_SERVER['DOCUMENT_ROOT'] ?? ''));
-    if ($doc) {
-        $roots[] = $doc;
-    }
-    $roots[] = __DIR__;
-    // An ancestor called public_html, www, ... usually holds several sites.
-    $d = __DIR__;
-    while ($d !== '/' && $d !== '' && $d !== '.') {
-        if (in_array(basename($d), EPG_WEB_BASE_NAMES, true)) {
-            $roots[] = $d;
-        }
-        $parent = dirname($d);
-        if ($parent === $d) {
-            break;
-        }
-        $d = $parent;
-    }
-    return array_values(array_unique($roots));
-}
-
-function epg_is_web_path(string $path): bool
-{
-    foreach (epg_web_roots() as $r) {
-        if (epg_inside($path, $r)) {
-            return true;
-        }
-    }
-    return false;
-}
-
-/** Could this process create $dir (or does it exist and is writable)? */
-function epg_creatable(string $dir): bool
-{
-    if (is_dir($dir)) {
-        return is_writable($dir);
-    }
-    $d = dirname($dir);
-    while (!is_dir($d)) {
-        $p = dirname($d);
-        if ($p === $d) {
-            return false;
-        }
-        $d = $p;
-    }
-    return is_writable($d);
-}
-
-// ---------------------------------------------------------------- saved paths
+// ---------------------------------------------------------------- paths (Docker)
+//
+// EPGArr runs only in its Docker image, so every path is fixed there:
+//   /app/www     these pages (guides/ and logos/ link into /data)
+//   /data        the volume: epg.db, users, backups, logs, guides, logos
+//   /usr/local/bin/epg-loader   the program, built into the image
+// EPGARR_DATA and EPGARR_BIN may override them.
 
 function epg_saved_paths(): array
 {
-    if (!is_file(EPG_PATHS_FILE)) {
-        return [];
-    }
-    $v = @include EPG_PATHS_FILE;
-    return is_array($v) ? $v : [];
+    return [];
 }
 
+/** Settings used to be kept in setup-paths.php; in Docker everything is in /data. */
 function epg_save_paths(array $paths): bool
 {
-    $clean = [];
-    foreach (['data_dir', 'src_dir', 'bin', 'admin_hash'] as $k) {
-        if (isset($paths[$k]) && is_string($paths[$k]) && $paths[$k] !== '') {
-            $clean[$k] = $paths[$k];
-        }
-    }
-    $php = "<?php\n// Written by setup.php. Paths chosen on the setup page; empty = detect automatically.\n"
-        . 'return ' . var_export($clean, true) . ";\n";
-    $tmp = EPG_PATHS_FILE . '.tmp';
-    if (@file_put_contents($tmp, $php) === false) {
-        return false;
-    }
-    @chmod($tmp, 0640);
-    if (!@rename($tmp, EPG_PATHS_FILE)) {
-        return false;
-    }
-    if (function_exists('opcache_invalidate')) {
-        @opcache_invalidate(EPG_PATHS_FILE, true);
-    }
-    return true;
+    return false;
 }
 
-// ---------------------------------------------------------------- detection
-
-/**
- * Everything the pages need to know about where things are. Each path has a
- * "*_from" telling where it came from: saved, detected, existing.
- */
 function epg_paths(bool $fresh = false): array
 {
     static $cache = null;
     if ($cache !== null && !$fresh) {
         return $cache;
     }
-    $saved = epg_saved_paths();
-    $user = epg_fpm_user();
-    $notes = [];
-
-    // Source folder: saved, else ./epg-loader next to this file.
-    $src = '';
-    $srcFrom = 'detected';
-    if (!empty($saved['src_dir'])) {
-        if (is_file($saved['src_dir'] . '/Cargo.toml')) {
-            $src = $saved['src_dir'];
-            $srcFrom = 'saved';
-        } else {
-            $notes[] = 'The saved source folder ' . $saved['src_dir'] . ' has no Cargo.toml any more, so it was detected again.';
-        }
-    }
-    if ($src === '' && is_file(__DIR__ . '/epg-loader/Cargo.toml')) {
-        $src = __DIR__ . '/epg-loader';
-    }
-
-    // Data dir.
-    $candidates = epg_data_dir_candidates($user, $src);
-    $data = '';
-    $dataFrom = 'detected';
-    if (!empty($saved['data_dir'])) {
-        $d = $saved['data_dir'];
-        if (is_dir($d) && is_writable($d) && !epg_is_web_path($d)) {
-            $data = $d;
-            $dataFrom = 'saved';
-        } else {
-            $notes[] = 'The saved data folder ' . $d . ' is missing, not writable or inside the web root, so it was detected again.';
-        }
-    }
-    if ($data === '') {
-        foreach ($candidates as $c) {
-            if (is_file($c . '/epg.db') && is_writable($c) && is_writable($c . '/epg.db')) {
-                $data = $c;
-                $dataFrom = 'existing install';
-                break;
+    $data = rtrim((string)(getenv('EPGARR_DATA') ?: '/data'), '/');
+    $bin = (string)(getenv('EPGARR_BIN') ?: '/usr/local/bin/epg-loader');
+    // Until the Docker container replaces it, keep an older install working: it kept its data
+    // folder in setup-paths.php and built the program into <data>/target/release.
+    if (!getenv('EPGARR_DATA') && !is_file('/.dockerenv') && is_file(__DIR__ . '/setup-paths.php')) {
+        $old = @include __DIR__ . '/setup-paths.php';
+        if (is_array($old) && !empty($old['data_dir']) && is_dir((string)$old['data_dir'])) {
+            $data = rtrim((string)$old['data_dir'], '/');
+            foreach ([$data . '/target/release/epg-loader', __DIR__ . '/epg-loader/target/release/epg-loader'] as $b) {
+                if (!is_file($bin) && is_file($b)) {
+                    $bin = $b;
+                }
             }
         }
     }
-    if ($data === '') {
-        foreach ($candidates as $c) {
-            if (epg_creatable($c)) {
-                $data = $c;
-                break;
-            }
-        }
-    }
-
-    // Binary: saved, else the newest working build.
-    $bin = '';
-    $binFrom = 'detected';
-    if (!empty($saved['bin'])) {
-        if (is_file($saved['bin']) && is_executable($saved['bin'])) {
-            $bin = $saved['bin'];
-            $binFrom = 'saved';
-        } else {
-            $notes[] = 'The saved program path ' . $saved['bin'] . ' no longer works, so it was detected again.';
-        }
-    }
-    if ($bin === '') {
-        $best = 0;
-        foreach (epg_bin_candidates($data, $src) as $b) {
-            if (is_file($b) && is_executable($b) && filemtime($b) > $best) {
-                $best = (int)filemtime($b);
-                $bin = $b;
-            }
-        }
-    }
-
-    $cargo = epg_find_cargo($user, $data, $src);
-
     $cache = [
         'web_dir' => __DIR__,
         'base_url' => epg_base_url(),
         'base_path' => epg_base_path(),
-        'doc_root' => (string)realpath((string)($_SERVER['DOCUMENT_ROOT'] ?? '')),
-        'user' => $user,
-        'src_dir' => $src,
-        'src_from' => $srcFrom,
-        'data_dir' => $data,
-        'data_from' => $dataFrom,
-        'data_candidates' => $candidates,
-        'bin' => $bin,
-        'bin_from' => $binFrom,
-        'cargo' => $cargo,
-        'notes' => $notes,
-        'saved' => $saved,
+        'user' => epg_fpm_user(),
+        'data_dir' => is_dir($data) ? $data : '',
+        'bin' => is_file($bin) && is_executable($bin) ? $bin : '',
+        'notes' => [],
+        'saved' => [],
     ];
     return $cache;
 }
 
-function epg_data_dir_candidates(array $user, string $src): array
-{
-    $c = [];
-    $home = $user['home'];
-    if ($home !== '' && $home !== '/' && !epg_is_web_path($home)) {
-        $c[] = epg_norm($home) . '/.local/share/' . EPG_DATA_DIR_NAME;
-    }
-    // Beside the web folders: the parent of the top-most public_html/www/...
-    $roots = epg_web_roots();
-    $top = '';
-    foreach ($roots as $r) {
-        if ($top === '' || strlen($r) < strlen($top)) {
-            $top = $r;
-        }
-    }
-    if ($top !== '' && dirname($top) !== $top) {
-        $c[] = epg_norm(dirname($top)) . '/' . EPG_DATA_DIR_NAME . '-data';
-    }
-    // An install made earlier with the console steps.
-    $c[] = '/var/lib/' . EPG_DATA_DIR_NAME;
-    $c = array_values(array_unique(array_filter($c, fn($p) => !epg_is_web_path($p))));
-    return $c;
-}
-
-function epg_bin_candidates(string $data, string $src): array
-{
-    $c = [];
-    if ($data !== '') {
-        $c[] = $data . '/target/release/epg-loader';
-    }
-    if ($src !== '') {
-        $c[] = $src . '/target/release/epg-loader';
-    }
-    $c[] = '/usr/local/bin/epg-loader';
-    $w = epg_which('epg-loader');
-    if ($w !== '') {
-        $c[] = $w;
-    }
-    return array_values(array_unique($c));
-}
-
-/**
- * Find cargo and the environment to run it with. Looks in the PHP user's
- * ~/.cargo, a toolchain installed into the data dir, the source folder
- * owner's ~/.cargo, then PATH.
- */
-function epg_find_cargo(array $user, string $data, string $src): array
-{
-    $tries = [];
-    if ($user['home'] !== '') {
-        $tries[] = [epg_norm($user['home']) . '/.cargo', epg_norm($user['home']) . '/.rustup', 'your PHP user\'s ~/.cargo'];
-    }
-    if ($data !== '') {
-        $tries[] = [$data . '/rust/cargo', $data . '/rust/rustup', 'the data folder'];
-    }
-    $owner = $src !== '' ? epg_user_of($src) : ['home' => ''];
-    if ($owner['home'] !== '' && $owner['home'] !== $user['home']) {
-        $tries[] = [epg_norm($owner['home']) . '/.cargo', epg_norm($owner['home']) . '/.rustup', 'the source folder owner\'s ~/.cargo'];
-    }
-    foreach ($tries as [$cargoHome, $rustupHome, $label]) {
-        $bin = $cargoHome . '/bin/cargo';
-        if (is_file($bin) && is_executable($bin)) {
-            return epg_cargo_info($bin, $cargoHome, $rustupHome, $label, $data, $user);
-        }
-    }
-    $w = epg_which('cargo');
-    if ($w !== '') {
-        return epg_cargo_info($w, '', '', 'PATH', $data, $user);
-    }
-    return ['cargo' => '', 'label' => '', 'env' => []];
-}
-
-function epg_cargo_info(string $bin, string $cargoHome, string $rustupHome, string $label, string $data, array $user): array
-{
-    $home = ($user['home'] !== '' && is_writable($user['home'])) ? $user['home'] : $data;
-    $env = [
-        'HOME' => $home,
-        'PATH' => dirname($bin) . ':/usr/local/bin:/usr/bin:/bin',
-    ];
-    if ($cargoHome !== '') {
-        // Cargo needs a writable CARGO_HOME for its download cache.
-        $env['CARGO_HOME'] = is_writable($cargoHome) ? $cargoHome : $data . '/cargo-home';
-        $env['RUSTUP_HOME'] = $rustupHome;
-    }
-    if ($data !== '') {
-        $env['CARGO_TARGET_DIR'] = $data . '/target';
-    }
-    return ['cargo' => $bin, 'label' => $label, 'env' => $env];
-}
-
-/** Where "Install Rust" puts the toolchain. */
-function epg_rust_install_env(array $p): array
-{
-    $home = $p['user']['home'];
-    if ($home !== '' && is_writable($home) && !epg_is_web_path($home)) {
-        $cargoHome = epg_norm($home) . '/.cargo';
-        $rustupHome = epg_norm($home) . '/.rustup';
-        $h = $home;
-    } else {
-        $cargoHome = $p['data_dir'] . '/rust/cargo';
-        $rustupHome = $p['data_dir'] . '/rust/rustup';
-        $h = $p['data_dir'];
-    }
-    return ['HOME' => $h, 'CARGO_HOME' => $cargoHome, 'RUSTUP_HOME' => $rustupHome, 'PATH' => '/usr/local/bin:/usr/bin:/bin'];
-}
-
-/** Environment for running the epg-loader binary. */
 function epg_bin_env(array $p): array
 {
     return ['EPG_LOADER_DIR' => $p['data_dir'], 'EPG_OUTPUT_DIR' => $p['web_dir']];
@@ -544,10 +281,10 @@ function epg_db(array $p): PDO
         return $pdo;
     }
     if (!class_exists('PDO') || !in_array('sqlite', PDO::getAvailableDrivers(), true)) {
-        throw new RuntimeException('PHP has no PDO SQLite driver. Open setup.php for the fix.');
+        throw new RuntimeException('PHP has no PDO SQLite driver. The Docker image is missing it; rebuild the image.');
     }
     if ($p['data_dir'] === '' || !is_file($p['data_dir'] . '/epg.db')) {
-        throw new RuntimeException('The database (epg.db) does not exist yet. Open setup.php to finish the setup.');
+        throw new RuntimeException('The database (epg.db) does not exist yet. It is created when the container starts; check the container log.');
     }
     $pdo = new PDO('sqlite:' . $p['data_dir'] . '/epg.db', null, null, [
         PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
@@ -557,7 +294,7 @@ function epg_db(array $p): PDO
     $pdo->exec('PRAGMA busy_timeout = 15000');
     $has = $pdo->query("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'schema_version'")->fetchColumn();
     if ($has === false) {
-        throw new RuntimeException('epg.db has no tables yet. Open setup.php and run "Initialise or upgrade database".');
+        throw new RuntimeException('epg.db has no tables yet. Restart the container so the program can create them.');
     }
     return $pdo;
 }
@@ -1535,7 +1272,7 @@ function epg_start_enrich(array $p): string
         return 'The epg-loader program has not been built yet. Use the setup page.';
     }
     if (!epg_bin_supports($p, 'enrich')) {
-        return 'The installed program is older than the background lookups. Open Setup and press Build the program first.';
+        return 'The program in this image does not support background lookups; update the image.';
     }
     if (!epg_can_exec()) {
         return 'PHP cannot run programs here (exec/proc_open are disabled).';
@@ -1594,7 +1331,7 @@ function epg_check_file(array $p): string
 function epg_start_check(array $p): string
 {
     if ($p['bin'] === '') {
-        return 'Build the program first.';
+        return 'The program is missing from the image.';
     }
     $out = epg_check_file($p);
     if (epg_job_status($p)['running']) {
@@ -1617,10 +1354,10 @@ function epg_guide_check_file(array $p, string $slug): string
 function epg_start_guide_check(array $p, string $slug): string
 {
     if ($p['bin'] === '') {
-        return 'Build the program first.';
+        return 'The program is missing from the image.';
     }
     if (!epg_bin_supports_flag($p, '--guide')) {
-        return 'Testing a single guide needs the new program: open Setup and press Build the program.';
+        return 'The program in this image cannot test a single guide; update the image.';
     }
     if (epg_job_status($p)['running']) {
         return 'Another task is still running. Wait for it to finish.';
@@ -1666,141 +1403,62 @@ function epg_run_pending_check(array $p): void
     }
 }
 
-// ---------------------------------------------------------------- schedule (crontab)
+// ---------------------------------------------------------------- system checks (Settings › Advanced)
 
-function epg_cron_tag(): string
+/** The program's version, from "epg-loader info" (cached per binary). */
+function epg_program_info(array $p): array
 {
-    return '# epg-loader ' . substr(sha1(__DIR__), 0, 10);
+    static $info = null;
+    if ($info !== null) {
+        return $info;
+    }
+    $info = [];
+    if ($p['bin'] !== '' && epg_can_exec()) {
+        $out = [];
+        $rc = 1;
+        @exec(escapeshellarg($p['bin']) . ' info 2>/dev/null', $out, $rc);
+        $j = $rc === 0 ? json_decode(implode("\n", $out), true) : null;
+        $info = is_array($j) ? $j : [];
+    }
+    return $info;
 }
 
-function epg_cron_lines(): ?array
+/** Is the scheduler ("epg-loader watch", started by the container) running? */
+function epg_scheduler_running(): bool
 {
-    if (epg_which('crontab') === '') {
-        return null;
-    }
-    $out = [];
-    $rc = 0;
-    @exec('crontab -l 2>/dev/null', $out, $rc);
-    return $rc === 0 ? $out : [];
-}
-
-function epg_cron_installed(): bool
-{
-    $lines = epg_cron_lines();
-    if (!$lines) {
-        return false;
-    }
-    foreach ($lines as $l) {
-        if (str_contains($l, epg_cron_tag())) {
+    foreach (glob('/proc/[0-9]*/cmdline') ?: [] as $f) {
+        $c = str_replace("\0", ' ', (string)@file_get_contents($f));
+        if (str_contains($c, 'epg-loader') && preg_match('/\swatch(\s|$)/', $c)) {
             return true;
         }
     }
     return false;
 }
 
-function epg_cron_write(array $lines): string
+/** What Settings › Advanced shows: [title, status ok|warn|fail, detail]. */
+function epg_system_checks(array $p): array
 {
-    $proc = proc_open('crontab -', [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
-    if (!is_resource($proc)) {
-        return 'Could not run crontab.';
-    }
-    fwrite($pipes[0], implode("\n", $lines) . "\n");
-    fclose($pipes[0]);
-    $out = stream_get_contents($pipes[1]) . stream_get_contents($pipes[2]);
-    fclose($pipes[1]);
-    fclose($pipes[2]);
-    $rc = proc_close($proc);
-    return $rc === 0 ? '' : 'crontab refused the change: ' . trim((string)$out);
-}
-
-/** The cron line: every 15 minutes, and the binary itself waits for refresh_hours. */
-function epg_cron_line(array $p): string
-{
-    $cmd = epg_env_prefix(epg_bin_env($p)) . escapeshellarg($p['bin']) . ' build --if-due'
-        . ' >> ' . escapeshellarg(epg_logs_dir($p) . '/cron.log') . ' 2>&1';
-    // % is special in crontab.
-    return '*/15 * * * * ' . str_replace('%', '\%', $cmd) . ' ' . epg_cron_tag();
-}
-
-function epg_cron_install(array $p): string
-{
-    if ($p['bin'] === '') {
-        return 'Build the program first.';
-    }
-    $lines = epg_cron_lines();
-    if ($lines === null) {
-        return 'The crontab command is not available on this server.';
-    }
-    $keep = array_values(array_filter($lines, fn($l) => !str_contains($l, epg_cron_tag())));
-    $keep[] = epg_cron_line($p);
-    return epg_cron_write($keep);
-}
-
-function epg_cron_remove(): string
-{
-    $lines = epg_cron_lines();
-    if ($lines === null) {
-        return 'The crontab command is not available on this server.';
-    }
-    $keep = array_values(array_filter($lines, fn($l) => !str_contains($l, epg_cron_tag())));
-    return epg_cron_write($keep);
-}
-
-// ---------------------------------------------------------------- setup state
-
-/**
- * Cheap "is setup complete?" for every page load: the program exists, the
- * database works, a source URL is saved, a build has succeeded, a schedule
- * exists, and the last full check on setup.php found no failures.
- */
-function epg_setup_state(array $p): array
-{
-    static $cache = null;
-    if ($cache !== null) {
-        return $cache;
-    }
-    $saved = [];
-    if ($p['data_dir'] !== '' && is_readable($p['data_dir'] . '/setup-state.json')) {
-        $saved = json_decode((string)file_get_contents($p['data_dir'] . '/setup-state.json'), true) ?: [];
-    }
-    $fails = (int)($saved['fails'] ?? 0);
-    $warns = (int)($saved['warns'] ?? 0);
-    $reason = '';
-    if ($p['bin'] === '') {
-        $reason = 'the program has not been built';
-    } else {
-        try {
-            $db = epg_db($p);
-            $src = epg_has_table($db, 'guides')
-                ? $db->query("SELECT source_url FROM guides WHERE enabled = 1 AND source_url <> '' LIMIT 1")->fetchColumn()
-                : $db->query("SELECT value FROM settings WHERE key = 'source_url'")->fetchColumn();
-            $ok = $db->query('SELECT COUNT(*) FROM runs WHERE ok = 1')->fetchColumn();
-            if (!is_string($src) || trim($src) === '') {
-                $reason = 'no XMLTV source is saved';
-            } elseif ((int)$ok === 0) {
-                $reason = 'no guide build has succeeded yet';
-            } elseif (!epg_cron_installed() && empty($saved['watch'])) {
-                $reason = 'no schedule is installed';
-            } elseif ($fails > 0) {
-                $reason = $fails . ' check(s) failed';
+    $c = [];
+    $info = epg_program_info($p);
+    $c[] = ['Program', $p['bin'] !== '' && $info ? 'ok' : 'fail',
+        $p['bin'] !== '' ? 'epg-loader ' . ($info['version'] ?? '?') . ' · database schema ' . ($info['schema_version'] ?? '?') : 'not found in the image'];
+    $c[] = ['Scheduler', epg_scheduler_running() ? 'ok' : 'fail',
+        epg_scheduler_running() ? 'running: guides are rebuilt on their schedule' : 'not running: restart the container'];
+    $d = $p['data_dir'];
+    $c[] = ['Data volume', $d !== '' && is_writable($d) ? 'ok' : 'fail', $d !== '' ? $d . (is_writable($d) ? '' : ' is not writable') : 'missing: mount a volume at /data'];
+    $c[] = ['SQLite for PHP', extension_loaded('pdo_sqlite') ? 'ok' : 'fail', extension_loaded('pdo_sqlite') ? 'available' : 'missing'];
+    $c[] = ['Image support for channel logos', function_exists('imagecreatefromstring') ? 'ok' : 'warn',
+        function_exists('imagecreatefromstring') ? 'GD is available: uploaded logos are stored as PNG, at most 512 px' : 'GD is missing: uploaded logos are stored as they are'];
+    $chk = epg_check_file($p);
+    $j = $chk !== '' && is_readable($chk) ? json_decode((string)file_get_contents($chk), true) : null;
+    if (is_array($j)) {
+        foreach (['internet' => 'Internet', 'tmdb' => 'TMDB key', 'source' => 'First guide source'] as $k => $label) {
+            if (isset($j[$k]) && is_array($j[$k])) {
+                $c[] = [$label, !empty($j[$k]['ok']) ? 'ok' : 'fail', (string)($j[$k]['detail'] ?? '')];
             }
-        } catch (Throwable $e) {
-            $reason = 'the database is not ready';
         }
     }
-    $cache = ['complete' => $reason === '', 'reason' => $reason, 'fails' => $fails, 'warns' => $warns];
-    return $cache;
-}
-
-function epg_save_setup_state(array $p, array $state): void
-{
-    if ($p['data_dir'] === '' || !is_dir($p['data_dir'])) {
-        return;
-    }
-    $f = $p['data_dir'] . '/setup-state.json';
-    if (@file_put_contents($f . '.tmp', json_encode($state + ['checked_at' => time()])) !== false) {
-        @rename($f . '.tmp', $f);
-    }
+    return $c;
 }
 
 // ---------------------------------------------------------------- layout
@@ -1841,21 +1499,12 @@ function epg_icon(string $name): string
  */
 function epg_layout_start(array $p, string $active, string $title, string $sub = '', array $flashes = [], string $headRight = ''): void
 {
-    $state = epg_setup_state($p);
-    // Setup only shows until the first-time setup is done; after that it lives in Settings › Advanced.
-    $showSetup = $active === 'setup' || !epg_setup_done($p);
     $item = function (string $key, string $href, string $label, string $icon, string $extra = '') use ($active) {
         $cls = 'item' . ($key === $active ? ' active' : '');
         $cur = $key === $active ? ' aria-current="page"' : '';
         return '<a class="' . $cls . '" href="' . h($href) . '"' . $cur . ' title="' . h($label) . '">'
             . epg_icon($icon) . '<span class="label">' . h($label) . '</span>' . $extra . '</a>';
     };
-    $badge = '';
-    if ($state['fails'] > 0) {
-        $badge = '<span class="badge fail" title="' . h($state['fails'] . ' failing check(s)') . '">' . (int)$state['fails'] . '</span>';
-    } elseif (!$state['complete']) {
-        $badge = '<span class="badge" title="' . h('Setup is not finished: ' . $state['reason']) . '">!</span>';
-    }
     echo '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">'
         . '<meta name="viewport" content="width=device-width, initial-scale=1">'
         . '<title>' . EPG_APP_NAME . ' · ' . h($title) . '</title>'
@@ -1871,63 +1520,17 @@ function epg_layout_start(array $p, string $active, string $title, string $sub =
         . $item('guide', 'guide.php', 'TV Guide', 'grid')
         . $item('activity', 'activity.php', 'Activity', 'pulse')
         . $item('settings', 'settings.php', 'Settings', 'settings')
-        . ($showSetup ? $item('setup', 'setup.php', 'Setup', 'setup', $badge) : '')
         . '<div class="nav-spacer"></div>'
         . epg_nav_auth($p)
         . '</nav><div class="content">'
         // No page title or description: the sidebar shows where you are. Page actions (search, "+ Add guide") stay.
         . ($headRight !== '' ? '<div class="page-head page-tools">' . $headRight . '</div>' : '<div class="page-top"></div>')
         . '<main class="page-' . h($active) . ($active === 'guide' ? ' wide' : '') . '">';
-    if ($active !== 'setup' && epg_authed($p) && epg_program_outdated($p)) {
-        echo '<div class="flash warn outdated-banner"><strong>The epg-loader program is out of date.</strong> '
-            . 'The source code is newer than the installed program. <a href="settings.php#advanced">Build the program</a> in Settings › Advanced.</div>';
-    }
     foreach ($flashes as [$type, $msg]) {
         echo '<div class="flash ' . h((string)$type) . '">' . h((string)$msg) . '</div>';
     }
 }
 
-/** True once the first-time setup has been completed (it then stays out of the sidebar). */
-function epg_setup_done(array $p): bool
-{
-    if ($p['data_dir'] === '' || !is_readable($p['data_dir'] . '/setup-state.json')) {
-        return false;
-    }
-    $s = json_decode((string)file_get_contents($p['data_dir'] . '/setup-state.json'), true);
-    return is_array($s) && (!empty($s['ever_complete']) || !empty($s['complete']));
-}
-
-/** Newest change in the program's source folder (0 when unknown). */
-function epg_source_newest(array $p): int
-{
-    $src = (string)($p['src_dir'] ?? '');
-    if ($src === '' || !is_dir($src)) {
-        return 0;
-    }
-    $newest = 0;
-    foreach (['Cargo.toml', 'Cargo.lock', 'rules.toml'] as $f) {
-        if (is_file("$src/$f")) {
-            $newest = max($newest, (int)filemtime("$src/$f"));
-        }
-    }
-    if (is_dir("$src/src")) {
-        foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator("$src/src", FilesystemIterator::SKIP_DOTS)) as $f) {
-            if ($f->isFile()) {
-                $newest = max($newest, (int)$f->getMTime());
-            }
-        }
-    }
-    return $newest;
-}
-
-/** The installed program is older than its source, so "Build the program" is needed. */
-function epg_program_outdated(array $p): bool
-{
-    if ($p['bin'] === '' || !is_file($p['bin'])) {
-        return false;
-    }
-    return epg_source_newest($p) > (int)filemtime($p['bin']);
-}
 
 function epg_layout_end(): void
 {

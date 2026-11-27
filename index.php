@@ -1,7 +1,6 @@
 <?php
 /*
- * EPGArr dashboard. Sends you to setup.php until setup is complete.
- * Shows only non-secret build statistics, so it needs no login.
+ * EPGArr dashboard: are the guides healthy, and where to point the media server.
  */
 declare(strict_types=1);
 require __DIR__ . '/epg_lib.php';
@@ -9,11 +8,6 @@ require __DIR__ . '/epg_lib.php';
 epg_boot();
 $p = epg_paths();
 epg_require_login($p);
-$state = epg_setup_state($p);
-if (!$state['complete']) {
-    header('Location: setup.php', true, 302);
-    exit;
-}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'cancel') {
     if (!epg_authed($p)) {

@@ -3,10 +3,10 @@
  * EPGArr settings page: a thin bridge to the Rust program.
  *
  * - Reads and writes rows in epg.db (settings). It never
- *   creates or migrates tables; the program does that (setup.php runs it).
+ *   creates or migrates tables; the program does that when the container starts.
  * - "Build now" starts "epg-loader build" in the background. The program
  *   locks build.lock itself, so two builds can never run at once.
- * - Paths are detected at runtime (see epg_lib.php and setup.php). The TMDB
+ * - Paths are fixed by the Docker image (see epg_lib.php). The TMDB
  *   key is never sent back to the browser in full.
  */
 declare(strict_types=1);
@@ -313,7 +313,7 @@ epg_layout_start($p, 'settings', 'Settings', 'Options shared by all your guides'
     <div class="card">
       <h2>Not set up yet</h2>
       <p class="bad-text"><?= h($fatal) ?></p>
-      <p><a href="setup.php">Open the setup page</a>. It checks everything and finishes the setup for you.</p>
+      <p>Check that the container is running and that the /data volume is mounted and writable.</p>
     </div>
 
 <?php else: ?>
@@ -325,9 +325,6 @@ epg_layout_start($p, 'settings', 'Settings', 'Options shared by all your guides'
     <form method="post" id="bk-restore" onsubmit="return confirm('Restore this backup? Your current settings, guides, users and custom logos are backed up first, then replaced.')"><?= $csrf ?><input type="hidden" name="action" value="backup_restore"></form>
     <form method="post" id="bk-delete" onsubmit="return confirm('Delete this backup?')"><?= $csrf ?><input type="hidden" name="action" value="backup_delete"></form>
     <form method="post" id="bk-upload" enctype="multipart/form-data" onsubmit="return confirm('Restore from this file? Your current state is backed up first.')"><?= $csrf ?><input type="hidden" name="action" value="backup_upload"></form>
-    <form method="post" action="setup.php" id="adv-build"><?= $csrf ?><input type="hidden" name="action" value="build"><input type="hidden" name="back" value="settings"></form>
-    <form method="post" action="setup.php" id="adv-test"><?= $csrf ?><input type="hidden" name="action" value="test"><input type="hidden" name="back" value="settings"></form>
-    <form method="post" id="adv-cancel" onsubmit="return confirm('Stop the running task?')"><?= $csrf ?><input type="hidden" name="action" value="cancel"></form>
 
     <form method="post" autocomplete="off" id="settings-form" class="set-layout">
       <?= $csrf ?>
@@ -503,37 +500,32 @@ epg_layout_start($p, 'settings', 'Settings', 'Options shared by all your guides'
         <section class="card set-panel" id="advanced">
           <h2>Advanced</h2>
           <?php
-          $binTime = $p['bin'] !== '' && is_file($p['bin']) ? (int)filemtime($p['bin']) : 0;
-          $srcTime = epg_source_newest($p);
-          $outdated = epg_program_outdated($p);
-          $sys = epg_setup_state($p);
+          $checks = epg_system_checks($p);
+          $bad = count(array_filter($checks, fn($c) => $c[1] === 'fail'));
+          $info = epg_program_info($p);
           ?>
           <h3 class="adv-h">Program</h3>
           <dl>
-            <dt>Installed</dt><dd><?= $binTime ? h(date('D j M Y, H:i', $binTime)) : 'not built yet' ?></dd>
-            <dt>Source changed</dt><dd class="<?= $outdated ? 'warn-text' : '' ?>"><?= $srcTime ? h(date('D j M Y, H:i', $srcTime)) . ($outdated ? ' · newer than the program, build it to use the changes' : ' · the program is up to date') : 'unknown' ?></dd>
+            <dt>Version</dt><dd>EPGArr <?= h((string)($info['version'] ?? '?')) ?> (Docker image)</dd>
+            <dt>Database schema</dt><dd><?= h((string)($info['schema_version'] ?? '?')) ?></dd>
           </dl>
-          <div class="form-actions">
-            <button form="adv-build" class="<?= $outdated ? '' : 'secondary' ?>">Build the program</button>
-            <button form="adv-test" class="ghost">Run tests</button>
-            <button form="adv-cancel" class="ghost danger-text" id="adv-cancel-btn" hidden>Cancel</button>
-          </div>
-          <pre class="act-log adv-log" id="adv-log" hidden></pre>
-          <p class="hint" id="adv-job"></p>
+          <p class="hint">To update, pull or build the new image and recreate the container; your data in /data stays.</p>
 
-          <details class="adv-checks" id="adv-checks">
-            <summary>System checks · <span class="<?= $sys['complete'] && !$sys['fails'] ? 'ok-text' : 'warn-text' ?>"><?= h($sys['complete'] && !$sys['fails'] ? 'Running normally' : ($sys['reason'] !== '' ? ucfirst($sys['reason']) : 'Needs attention')) ?></span></summary>
-            <div id="adv-checks-list"><p class="muted">Checking…</p></div>
+          <details class="adv-checks" id="adv-checks"<?= $bad ? ' open' : '' ?>>
+            <summary>System checks · <span class="<?= $bad ? 'bad-text' : 'ok-text' ?>"><?= $bad ? h($bad . ' problem' . ($bad > 1 ? 's' : '')) : 'Running normally' ?></span></summary>
+            <ul class="adv-check-list">
+            <?php foreach ($checks as [$title, $status, $detail]): ?>
+              <li><span class="dot <?= h($status) ?>"></span><strong><?= h($title) ?></strong> <span class="muted"><?= h($detail) ?></span></li>
+            <?php endforeach; ?>
+            </ul>
           </details>
 
-          <h3 class="adv-h">Folders</h3>
+          <h3 class="adv-h">Folders in the container</h3>
           <dl>
-            <dt>Guides folder</dt><dd><code><?= h($p['web_dir'] . '/guides/') ?></code></dd>
-            <dt>Data folder</dt><dd><code><?= h($p['data_dir'] !== '' ? $p['data_dir'] : '—') ?></code></dd>
-            <dt>Program</dt><dd><code><?= h($p['bin'] !== '' ? $p['bin'] : 'not built yet') ?></code></dd>
+            <dt>Data volume</dt><dd><code><?= h($p['data_dir'] !== '' ? $p['data_dir'] : '/data (not mounted)') ?></code></dd>
+            <dt>Guide files</dt><dd><code><?= h(($p['data_dir'] !== '' ? $p['data_dir'] : '/data') . '/guides/') ?></code></dd>
+            <dt>Program</dt><dd><code><?= h($p['bin'] !== '' ? $p['bin'] : 'missing') ?></code></dd>
           </dl>
-          <p class="hint">Detected automatically. Re-run setup to check or change them.</p>
-          <a class="button secondary" href="setup.php?rerun=1"><?= epg_icon('setup') ?>Re-run setup</a>
         </section>
       </div>
 
@@ -583,49 +575,6 @@ epg_layout_start($p, 'settings', 'Settings', 'Options shared by all your guides'
       });
       document.getElementById('user-pw-cancel').addEventListener('click', function () { document.getElementById('user-pw').hidden = true; });
 
-      // Advanced: the running task (Build the program, Run tests) with its live log.
-      var log = document.getElementById('adv-log'), jobEl = document.getElementById('adv-job'), cancelBtn = document.getElementById('adv-cancel-btn');
-      function job() {
-        fetch('setup.php?ajax=job', { credentials: 'same-origin', cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (j) {
-          var mine = j.name === 'build' || j.name === 'tests';
-          if (mine && j.log) {
-            var atEnd = log.scrollTop + log.clientHeight >= log.scrollHeight - 30;
-            log.hidden = false;
-            log.textContent = j.log;
-            if (atEnd) { log.scrollTop = log.scrollHeight; }
-          }
-          cancelBtn.hidden = !(mine && j.running);
-          jobEl.textContent = mine ? (j.running ? j.label + ' is running...' : j.label + (j.exit === 0 ? ' finished.' : (j.cancelled ? ' was cancelled.' : ' failed (exit code ' + j.exit + ').'))) : '';
-          setTimeout(job, j.running ? 2000 : 15000);
-        }).catch(function () { setTimeout(job, 15000); });
-      }
-      job();
-
-      // Advanced: the same checks Setup runs, loaded when opened.
-      var checks = document.getElementById('adv-checks'), loaded = false;
-      checks.addEventListener('toggle', function () {
-        if (!checks.open || loaded) { return; }
-        loaded = true;
-        fetch('setup.php?ajax=checks', { credentials: 'same-origin', cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (j) {
-          var box = document.getElementById('adv-checks-list');
-          box.textContent = '';
-          var ul = document.createElement('ul');
-          ul.className = 'adv-check-list';
-          (j.checks || []).forEach(function (c) {
-            var li = document.createElement('li');
-            var dot = document.createElement('span');
-            dot.className = 'dot ' + (c.status === 'ok' ? 'ok' : (c.status === 'fail' ? 'fail' : (c.status === 'warn' ? 'warn' : 'info')));
-            var t = document.createElement('strong');
-            t.textContent = c.title;
-            var d = document.createElement('span');
-            d.className = 'muted';
-            d.textContent = ' ' + c.detail;
-            li.appendChild(dot); li.appendChild(t); li.appendChild(d);
-            ul.appendChild(li);
-          });
-          box.appendChild(ul);
-        }).catch(function () { document.getElementById('adv-checks-list').textContent = 'The checks could not be loaded.'; loaded = false; });
-      });
     })();
     </script>
 <?php endif; ?>
