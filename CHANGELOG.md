@@ -12,8 +12,17 @@ update.
   instead of building from the source).
 
 ### Added
+- **Get started** on the Dashboard after a fresh install: until the first guide
+  exists, the Dashboard shows the steps (add a guide, optional TMDB key, build
+  and add the address to your media server) with buttons to each.
 - The GitHub build check publishes the image to
   `ghcr.io/toorone/epgarr:latest` (and a tag per commit) on every push to `main`.
+
+### Fixed
+- TheSportsDB lookups all failed with HTTP 403: TheSportsDB switched off the old
+  free key `3`. The free key is now `123`, and a saved `3` is treated as `123`.
+- When TheSportsDB refuses the key, the lookups stop with one clear message
+  instead of failing for every match.
 
 ## 0.2.0 — 2026-11-27: one program, no PHP
 

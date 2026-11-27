@@ -433,7 +433,7 @@ pub async fn page_get(State(app): State<Shared>, headers: HeaderMap, Query(q): Q
 <p class="hint">Free, no key needed.</p>
 <label class="check"><input type="checkbox" name="sportsdb" value="1"{c_sports}> Use TheSportsDB for sports matches without a poster</label>
 <label for="sportsdb_key">TheSportsDB API key</label>
-<input type="text" id="sportsdb_key" name="sportsdb_key" value="{sportsdb_key}" placeholder="3 (free test key)" class="short" autocomplete="off">
+<input type="text" id="sportsdb_key" name="sportsdb_key" value="{sportsdb_key}" placeholder="123 (free test key)" class="short" autocomplete="off">
 <p class="hint">Leave empty to use the free key; enter your own for higher limits.</p>
 </section>
 <section class="card set-panel" id="logos"><h2>Channel logos</h2>

@@ -49,6 +49,21 @@ fn pct(a: i64, b: i64) -> String {
     if b > 0 { format!("{}%", (a as f64 * 100.0 / b as f64).round() as i64) } else { "—".into() }
 }
 
+/// The Dashboard before the first guide exists: what to do, in order.
+fn get_started(app: &Shared) -> String {
+    let has_key = super::common::settings(app).get("tmdb_api_key").is_some_and(|k| !k.trim().is_empty());
+    let key_step = if has_key {
+        r#"<li class="done"><strong>Artwork and info</strong><p class="muted">Your TMDB key is saved, so posters, ratings and descriptions will be added.</p></li>"#.to_string()
+    } else {
+        r#"<li><strong>Artwork and info (optional)</strong><p class="muted">Paste a free TMDB API key so posters, ratings and descriptions are added. Without it the guide still works, with channel logos, IMDb ratings, TVmaze and TheSportsDB.</p><a class="button secondary" href="settings.php#artwork">Open Settings</a></li>"#.to_string()
+    };
+    format!(
+        r#"<div class="card start-card"><h2>{icon}Get started</h2><p class="muted">EPGArr turns your XMLTV source into a guide your media server can use. Three steps:</p><ol class="start-steps"><li><strong>Add your first guide</strong><p class="muted">Give it a name and the address of your XMLTV source (from your IPTV provider or an EPG site). Use <em>Test source</em> to check it before saving.</p><a class="button" href="guides.php?add=1">Add a guide</a></li>{key_step}<li><strong>Build it and add it to your media server</strong><p class="muted">Press <em>Build now</em>; the first build takes a few minutes. Then copy the guide's address from the Dashboard into Emby, Plex or Jellyfin as an XMLTV guide source. It is rebuilt every {h} hours after that.</p></li></ol></div>"#,
+        icon = icon("check"),
+        h = super::common::hours_text(default_hours(app)),
+    )
+}
+
 pub async fn page_get(State(app): State<Shared>, headers: HeaderMap, Query(q): Query<HashMap<String, String>>) -> Response {
     let ctx = app.ctx(&headers);
     if ctx.user.is_none() {
@@ -62,6 +77,9 @@ pub async fn page_get(State(app): State<Shared>, headers: HeaderMap, Query(q): Q
         }
     };
     let guides = db::guides(&conn).unwrap_or_default();
+    if guides.is_empty() {
+        return html_page(&ctx, page(&ctx, "dashboard", "Dashboard", "", &get_started(&app)));
+    }
     let cov = coverage(&app, &conn);
     let building = jobs::build_running(&app);
     let job_label = app.jobs.running().map(|j| j.label).unwrap_or_default();

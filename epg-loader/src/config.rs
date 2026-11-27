@@ -95,7 +95,7 @@ pub struct Config {
     pub tvmaze_url: String,
     /// Seconds of TVmaze lookups per build; the background lookups do the rest.
     pub tvmaze_time_budget: u64,
-    /// Posters for sports matches from TheSportsDB (free tier key "3" unless you have your own).
+    /// Posters for sports matches from TheSportsDB (free test key "123" unless you have your own).
     pub sportsdb: bool,
     pub sportsdb_key: String,
     pub sportsdb_url: String,
@@ -139,7 +139,7 @@ impl Default for Config {
             tvmaze_url: "https://api.tvmaze.com/singlesearch/shows".into(),
             tvmaze_time_budget: 60,
             sportsdb: true,
-            sportsdb_key: "3".into(),
+            sportsdb_key: "123".into(),
             sportsdb_url: "https://www.thesportsdb.com/api/v1/json".into(),
             sportsdb_time_budget: 60,
             channels_file: PathBuf::from("channels.toml"),
@@ -196,7 +196,8 @@ impl Config {
                 Some(v) => !matches!(v.to_ascii_lowercase().as_str(), "0" | "off" | "false" | "no"),
                 None => d.sportsdb,
             },
-            sportsdb_key: get("sportsdb_key").unwrap_or(&d.sportsdb_key).to_string(),
+            // The old free key "3" was switched off by TheSportsDB; "123" replaced it.
+            sportsdb_key: get("sportsdb_key").filter(|k| *k != "3").unwrap_or(&d.sportsdb_key).to_string(),
             sportsdb_url: get("sportsdb_url").unwrap_or(&d.sportsdb_url).to_string(),
             sportsdb_time_budget: match get("sportsdb_time_budget") {
                 Some(v) => v.parse().with_context(|| format!("sportsdb_time_budget must be whole seconds, not {v:?}"))?,

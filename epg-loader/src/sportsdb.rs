@@ -190,9 +190,15 @@ pub async fn lookup_all(
             }
             Ok(Answer::RateLimited) => {}
             Err(e) => {
+                // A refused key fails every lookup the same way: say so once and stop.
+                let msg = format!("{e:#}");
+                if msg.ends_with("HTTP 401") || msg.ends_with("HTTP 403") {
+                    eprintln!("warning: TheSportsDB refused the API key ({}); check it in Settings › Artwork & info", &msg[msg.len() - 8..]);
+                    break;
+                }
                 errors += 1;
                 if errors <= 5 {
-                    eprintln!("warning: {e:#}");
+                    eprintln!("warning: {msg}");
                 }
             }
         }
