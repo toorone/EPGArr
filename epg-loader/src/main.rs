@@ -417,6 +417,8 @@ async fn main() -> ExitCode {
                     }
                 };
                 rt.block_on(async move {
+                    // Give a task resumed by the pages (see web::serve) the first go.
+                    tokio::time::sleep(Duration::from_secs(10)).await;
                     match open_data_dir(&d) {
                         Ok(conn) => {
                             web::SCHEDULER_RUNNING.store(true, std::sync::atomic::Ordering::Relaxed);
@@ -445,8 +447,12 @@ async fn main() -> ExitCode {
     }
 }
 
-/// True when refresh_hours (the guide's own, else the default) have passed since its last run started.
+/// True when refresh_hours (the guide's own, else the default) have passed since its last run
+/// started, or when that run was cut short by a shutdown: it is then built again straight away.
 fn is_due(conn: &Connection, guide_id: i64, cfg: &Config) -> bool {
+    if db::last_run_interrupted(conn, guide_id) {
+        return true;
+    }
     let last = db::last_run_started(conn, guide_id).ok().flatten().unwrap_or(0);
     timeutil::now_unix() - last >= (cfg.refresh_hours * 3600.0) as i64
 }
@@ -585,6 +591,9 @@ async fn build_guides(conn: &Connection, cfg: &Config, only: Option<&str>, if_du
         if if_due && !is_due(conn, g.id, &gcfg) {
             continue;
         }
+        if if_due && db::last_run_interrupted(conn, g.id) {
+            println!("Guide \"{}\": its last build was cut short (EPGArr was stopped); building it again now", g.name);
+        }
         if gcfg.source_url.is_empty() {
             eprintln!("error: guide \"{}\" has no XMLTV source URL yet (set it on the Guides page); skipped", g.name);
             failed.push(g.name.clone());
@@ -660,7 +669,8 @@ async fn build_once(conn: &Connection, cfg: &Config, target: &Target, opts: Opts
         }
         Err(e) => {
             let cancelled = e.downcast_ref::<Cancelled>().is_some();
-            let msg = format!("{e:#}");
+            // Stopped by a shutdown, not by the user: the next start builds it again.
+            let msg = if cancelled && TERMINATED.load(Ordering::Relaxed) { "interrupted".to_string() } else { format!("{e:#}") };
             let res = update_status(&target.status, |s| {
                 s.guide = target.slug.clone();
                 // A cancelled build leaves the previous guide in place, so that is still fine.

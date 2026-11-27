@@ -4,6 +4,27 @@ Every change to EPGArr is written down here, newest first. Each release lists
 what was added, changed, fixed and removed, and anything you must do when you
 update.
 
+## 0.4.0 — 2026-11-27: picks up where it left off
+
+### Added
+- **Work cut short by a shutdown starts again by itself.** If the container is
+  stopped, restarted or the server loses power while something is running:
+  - a task started from the pages (a guide build, *Build all*, a source test)
+    is started again when EPGArr comes back ("Resuming … which was cut short"
+    in `docker logs epgarr`);
+  - a scheduled guide build that was cut short is built again straight away
+    instead of waiting for its next rebuild time;
+  - the background lookups carry on from where they were (this already
+    worked; they keep everything looked up so far).
+  A task you cancel or pause yourself stays stopped.
+- `docker stop` now reaches every process in the container, so a running build
+  or lookup saves what it has before it stops (tini `-g`), and EPGArr waits a
+  few seconds for that before it exits.
+
+### Fixed
+- A cancel left over from before a shutdown can no longer stop the first task
+  after the restart.
+
 ## 0.3.0 — 2026-11-27
 
 ### Changed

@@ -337,6 +337,37 @@ async fn check_latest(app: &Shared) {
     }
 }
 
+/// Wait for SIGTERM (docker stop) or Ctrl+C, then give running work a few seconds
+/// to save what it has. Interrupted work is picked up again at the next start.
+async fn shutdown(app: Shared) {
+    #[cfg(unix)]
+    {
+        use tokio::signal::unix::{signal, SignalKind};
+        let mut term = match signal(SignalKind::terminate()) {
+            Ok(s) => s,
+            Err(_) => return std::future::pending().await,
+        };
+        tokio::select! {
+            _ = term.recv() => {}
+            _ = tokio::signal::ctrl_c() => {}
+        }
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = tokio::signal::ctrl_c().await;
+    }
+    jobs::SHUTTING_DOWN.store(true, std::sync::atomic::Ordering::Relaxed);
+    println!("Stopping: saving the work in progress; it carries on at the next start");
+    app.save_sessions();
+    for _ in 0..16 {
+        let busy = app.jobs.running().is_some() || SCHEDULER_RUNNING.load(std::sync::atomic::Ordering::Relaxed);
+        if !busy {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+    }
+}
+
 /// An uploaded file: (file name, bytes).
 pub type Upload = (String, Vec<u8>);
 
@@ -426,6 +457,10 @@ pub fn router(app: Shared) -> Router {
 /// Run the web server on `addr` until the process ends.
 pub async fn serve(app: Shared, addr: &str) -> anyhow::Result<()> {
     let listener = tokio::net::TcpListener::bind(addr).await?;
+    // A task from the pages that was cut short by a shutdown starts again.
+    jobs::resume(&app);
+    // A cancel left over from before the shutdown must not stop anything now.
+    let _ = std::fs::remove_file(app.data_dir.join(crate::CANCEL_FILE));
     // Look for a new version on GitHub now and every 6 hours.
     let a = app.clone();
     tokio::spawn(async move {
@@ -444,7 +479,8 @@ pub async fn serve(app: Shared, addr: &str) -> anyhow::Result<()> {
         }
     });
     println!("EPGArr pages on http://{addr}");
-    axum::serve(listener, router(app)).await?;
+    let a = app.clone();
+    axum::serve(listener, router(app)).with_graceful_shutdown(shutdown(a)).await?;
     Ok(())
 }
 

@@ -607,6 +607,16 @@ pub fn finish_run(conn: &Connection, id: i64, now: i64, r: &RunResult) -> Result
     Ok(())
 }
 
+/// Was the guide's last build cut short by a shutdown (container stopped, power lost)?
+pub fn last_run_interrupted(conn: &Connection, guide_id: i64) -> bool {
+    conn.query_row(
+        "SELECT finished_at IS NULL OR error = 'interrupted' FROM runs WHERE guide_id = ?1 ORDER BY id DESC LIMIT 1",
+        params![guide_id],
+        |r| r.get::<_, bool>(0),
+    )
+    .unwrap_or(false)
+}
+
 pub fn last_run_started(conn: &Connection, guide_id: i64) -> Result<Option<i64>> {
     Ok(conn
         .query_row("SELECT MAX(started_at) FROM runs WHERE guide_id = ?1", params![guide_id], |r| r.get::<_, Option<i64>>(0))
@@ -677,6 +687,12 @@ mod tests {
         .unwrap();
         assert_eq!(last_run_started(&conn, 1).unwrap(), Some(200));
         assert_eq!(last_run_started(&conn, 2).unwrap(), None);
+        assert!(!last_run_interrupted(&conn, 1), "finished normally");
+        start_run(&conn, 1, 300).unwrap();
+        assert!(last_run_interrupted(&conn, 1), "never finished: the system went down");
+        start_run(&conn, 2, 400).unwrap();
+        assert!(last_run_interrupted(&conn, 1), "marked interrupted");
+        assert!(!last_run_interrupted(&conn, 3), "no runs at all");
 
         set_missing_logos(&conn, 1, &[("C.ca".into(), "C".into())]).unwrap();
         set_missing_logos(&conn, 1, &[("D.ca".into(), "D".into())]).unwrap();

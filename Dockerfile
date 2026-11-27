@@ -36,4 +36,5 @@ ENV EPG_LOADER_DIR=/data \
 VOLUME ["/data"]
 EXPOSE 80
 HEALTHCHECK --interval=60s --timeout=10s --start-period=30s CMD wget -q -O /dev/null http://127.0.0.1/ || exit 1
-ENTRYPOINT ["/sbin/tini", "--", "/entrypoint.sh"]
+# -g: docker stop reaches every process (builds, lookups), so each saves its work.
+ENTRYPOINT ["/sbin/tini", "-g", "--", "/entrypoint.sh"]

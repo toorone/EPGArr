@@ -34,6 +34,37 @@ impl Jobs {
     }
 }
 
+/// The task started from the pages that is running now: kept in the data folder
+/// until it ends, so a task cut short by a shutdown is started again next time.
+const RUNNING_FILE: &str = "task-running.json";
+
+/// Set when EPGArr is shutting down: a task that ends now was cut short, not finished.
+pub static SHUTTING_DOWN: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+#[derive(serde::Serialize, serde::Deserialize)]
+struct Marker {
+    name: String,
+    label: String,
+    args: Vec<String>,
+    stdout_to: Option<PathBuf>,
+}
+
+/// Start again the task that was running when EPGArr was stopped, if any.
+pub fn resume(app: &Shared) {
+    let path = app.data_dir.join(RUNNING_FILE);
+    let Some(m) = std::fs::read(&path).ok().and_then(|b| serde_json::from_slice::<Marker>(&b).ok()) else {
+        let _ = std::fs::remove_file(&path);
+        return;
+    };
+    println!("Resuming \"{}\", which was cut short when EPGArr stopped", m.label);
+    let args: Vec<&str> = m.args.iter().map(String::as_str).collect();
+    let e = start(app, &m.name, &m.label, &args, m.stdout_to.as_deref());
+    if !e.is_empty() {
+        eprintln!("warning: could not resume \"{}\": {e}", m.label);
+        let _ = std::fs::remove_file(&path);
+    }
+}
+
 pub fn logs_dir(app: &App) -> PathBuf {
     app.data_dir.join("logs")
 }
@@ -100,11 +131,22 @@ pub fn start(app: &Shared, name: &str, label: &str, args: &[&str], stdout_to: Op
         Err(e) => return format!("Could not start the task: {e}"),
     };
     let pid = child.id().unwrap_or(0);
+    let marker = Marker {
+        name: name.to_string(),
+        label: label.to_string(),
+        args: args.iter().map(|a| a.to_string()).collect(),
+        stdout_to: stdout_to.map(Path::to_path_buf),
+    };
+    let _ = crate::output::write_atomic(&app.data_dir.join(RUNNING_FILE), &serde_json::to_vec(&marker).unwrap_or_default());
     *app.jobs.current.lock().unwrap() =
         Some(Job { name: name.to_string(), label: label.to_string(), started: timeutil::now_unix(), pid, exit: None, cancelled: false });
     let app2 = app.clone();
     tokio::spawn(async move {
         let code = child.wait().await.ok().and_then(|s| s.code()).unwrap_or(-1);
+        // Finished (or cancelled by the user): nothing to resume. Cut short by a shutdown: keep it.
+        if !SHUTTING_DOWN.load(std::sync::atomic::Ordering::Relaxed) {
+            let _ = std::fs::remove_file(app2.data_dir.join(RUNNING_FILE));
+        }
         if let Ok(mut f) = std::fs::OpenOptions::new().append(true).open(&log_path) {
             use std::io::Write;
             let _ = write!(f, "\n[finished with exit code {code}]\n");
