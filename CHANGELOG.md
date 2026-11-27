@@ -4,6 +4,17 @@ Every change to EPGArr is written down here, newest first. Each release lists
 what was added, changed, fixed and removed, and anything you must do when you
 update.
 
+## 0.4.1 — 2026-11-27
+
+### Changed
+- Activity: the time left for the background lookups is shown as an estimate
+  ("~12 min est. left"), since it is worked out from the current speed.
+
+### Removed
+- Activity: the note "Resumes on its own every 15 minutes until every title is
+  done…"; the lookups simply keep going. The note that automatic lookups are
+  off is still shown when they are turned off in Settings.
+
 ## 0.4.0 — 2026-11-27: picks up where it left off
 
 ### Added

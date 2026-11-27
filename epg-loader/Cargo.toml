@@ -1,6 +1,6 @@
 [package]
 name = "epg-loader"
-version = "0.4.0"
+version = "0.4.1"
 edition = "2021"
 description = "Enriches an XMLTV guide with channel logos, TMDB posters, ratings and categories for Emby"
 publish = false

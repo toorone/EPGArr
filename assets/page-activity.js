@@ -29,7 +29,7 @@
         $('act-titles').textContent = nf.format(d.titles);
         $('act-pct').textContent = d.percent;
         $('act-rate').textContent = state === 'running' && d.rate > 0 ? d.rate : '–';
-        $('act-eta').textContent = state === 'running' ? dur(d.eta_secs) : '–';
+        $('act-eta').textContent = state === 'running' && d.eta_secs > 0 ? '~' + dur(d.eta_secs) : '–';
         $('act-updated').textContent = ago(d.updated, d.now);
         $('c-cached').textContent = nf.format(d.cached);
         $('c-matched').textContent = nf.format(d.matched);
