@@ -12,13 +12,7 @@ The image is published on GitHub as `ghcr.io/toorone/epgarr:latest` (every push 
 docker pull ghcr.io/toorone/epgarr:latest
 ```
 
-The repository and its image are private, so log in to GitHub's registry once on the server first. Use a [personal access token](https://github.com/settings/tokens) with the `read:packages` scope as the password:
-
-```bash
-docker login ghcr.io -u toorone
-```
-
-Then make a folder for EPGArr with this `docker-compose.yml` in it, and start it:
+Make a folder for EPGArr with this `docker-compose.yml` in it, and start it:
 
 ```yaml
 services:

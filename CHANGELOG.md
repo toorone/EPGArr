@@ -15,11 +15,6 @@ update.
 - The GitHub build check publishes the image to
   `ghcr.io/toorone/epgarr:latest` (and a tag per commit) on every push to `main`.
 
-### When you update
-- The repository is private, so its image is too: run
-  `docker login ghcr.io` once on the server with a token that has
-  `read:packages`.
-
 ## 0.2.0 — 2026-11-27: one program, no PHP
 
 ### Changed
