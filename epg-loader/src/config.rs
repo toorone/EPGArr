@@ -237,7 +237,8 @@ impl Config {
         if self.output_dir.as_os_str().is_empty() {
             bail!("output_dir is not set (it is filled in by the settings page)");
         }
-        if !self.output_dir.is_absolute() {
+        // "/srv/epg" counts as absolute on every OS (the tests run on Windows too).
+        if !(self.output_dir.is_absolute() || self.output_dir.to_string_lossy().starts_with('/')) {
             bail!("output_dir must be an absolute path, not {}", self.output_dir.display());
         }
         if self.tmdb_concurrency == 0 {

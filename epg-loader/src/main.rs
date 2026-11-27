@@ -419,7 +419,7 @@ async fn main() -> ExitCode {
                 rt.block_on(async move {
                     match open_data_dir(&d) {
                         Ok(conn) => {
-                            watch(&conn, &d, Some(o.as_path()), opts).await;
+                            let _ = watch(&conn, &d, Some(o.as_path()), opts).await;
                         }
                         Err(e) => eprintln!("error: scheduler: {e:#}"),
                     }
