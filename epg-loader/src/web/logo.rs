@@ -102,7 +102,7 @@ async fn fetch(url: &str) -> Result<Vec<u8>, String> {
     Ok(data)
 }
 
-/// The first 20 hex digits of the channel id's SHA-256 (the PHP pages used the same names).
+/// The first 20 hex digits of the channel id's SHA-256.
 fn file_base(channel: &str) -> String {
     use sha2::{Digest, Sha256};
     Sha256::digest(channel.as_bytes()).iter().map(|b| format!("{b:02x}")).collect::<String>()[..20].to_string()

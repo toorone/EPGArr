@@ -1,5 +1,4 @@
-//! Users and logging in. Users live in <data dir>/users.json (the same file
-//! and the same bcrypt hashes the PHP pages used, so accounts keep working).
+//! Users and logging in. Users live in <data dir>/users.json (bcrypt hashes).
 
 use axum::extract::{Form, State};
 use axum::http::HeaderMap;
@@ -35,28 +34,13 @@ fn admin_role() -> String {
 }
 
 pub fn users(data_dir: &Path) -> Vec<User> {
-    if let Some(list) = std::fs::read(data_dir.join("users.json"))
+    std::fs::read(data_dir.join("users.json"))
         .ok()
         .and_then(|b| serde_json::from_slice::<Vec<User>>(&b).ok())
-    {
-        return list.into_iter().filter(|u| !u.username.is_empty() && !u.hash.is_empty()).collect();
-    }
-    // An install from before users existed had one admin password.
-    let old = std::fs::read(data_dir.join("admin.json"))
-        .ok()
-        .and_then(|b| serde_json::from_slice::<serde_json::Value>(&b).ok())
-        .and_then(|v| v.get("hash").and_then(|h| h.as_str()).map(String::from));
-    match old {
-        Some(hash) if !hash.is_empty() => vec![User {
-            username: "admin".into(),
-            hash,
-            role: "admin".into(),
-            disabled: false,
-            created: timeutil::now_unix(),
-            last_login: 0,
-        }],
-        _ => Vec::new(),
-    }
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|u| !u.username.is_empty() && !u.hash.is_empty())
+        .collect()
 }
 
 pub fn save_users(data_dir: &Path, users: &[User]) -> anyhow::Result<()> {
@@ -99,7 +83,6 @@ pub fn hash_password(pw: &str) -> anyhow::Result<String> {
     Ok(bcrypt::hash(pw, 10)?)
 }
 
-/// PHP wrote "$2y$" bcrypt hashes; the bcrypt crate reads those too.
 pub fn verify(pw: &str, hash: &str) -> bool {
     bcrypt::verify(pw, hash).unwrap_or(false)
 }
@@ -298,18 +281,10 @@ mod tests {
     fn next_must_be_a_local_page() {
         assert_eq!(safe_next("tv?guide=a"), "tv?guide=a");
         assert_eq!(safe_next("./#history"), "./#history");
-        assert_eq!(safe_next("https://evil/x.php"), "");
-        assert_eq!(safe_next("../x.php"), "");
+        assert_eq!(safe_next("https://evil/x"), "");
+        assert_eq!(safe_next("../x"), "");
         assert_eq!(safe_next("/etc/passwd"), "");
         assert_eq!(safe_next("../guides"), "");
-    }
-
-    #[test]
-    fn php_bcrypt_hashes_verify() {
-        // password_hash("secret123", PASSWORD_DEFAULT) from PHP.
-        let h = hash_password("secret123").unwrap().replacen("$2b$", "$2y$", 1);
-        assert!(verify("secret123", &h));
-        assert!(!verify("wrong", &h));
     }
 
     #[test]

@@ -16,18 +16,102 @@ pub const DB_FILE: &str = "epg.db";
 /// Each entry upgrades the schema by one version. Never edit a shipped
 /// migration; append a new one.
 const MIGRATIONS: &[&str] = &[
-    // 1: initial schema
+    // 1: the schema
     r#"
     CREATE TABLE settings (
         key   TEXT PRIMARY KEY,
         value TEXT NOT NULL DEFAULT ''
     );
+    CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAULT '');
     CREATE TABLE channel_overrides (
         channel_id TEXT PRIMARY KEY,
         logo_url   TEXT NOT NULL DEFAULT '',
         group_name TEXT NOT NULL DEFAULT '',
         updated_at INTEGER NOT NULL DEFAULT 0
     );
+
+    -- Guides: each has its own source; its files are named after its slug.
+    -- output_slug is the slug of the files it wrote last, so a rename can remove them.
+    CREATE TABLE guides (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        name          TEXT NOT NULL,
+        slug          TEXT NOT NULL UNIQUE,
+        source_url    TEXT NOT NULL DEFAULT '',
+        days          INTEGER,
+        refresh_hours REAL,
+        logo_country  TEXT,
+        enabled       INTEGER NOT NULL DEFAULT 1,
+        created_at    INTEGER NOT NULL DEFAULT 0,
+        sort_order    INTEGER NOT NULL DEFAULT 0,
+        output_slug   TEXT
+    );
+    CREATE TABLE runs (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        started_at    INTEGER NOT NULL,
+        finished_at   INTEGER,
+        ok            INTEGER,
+        duration_secs REAL,
+        channels      INTEGER,
+        programmes    INTEGER,
+        logos_missing INTEGER,
+        posters_added INTEGER,
+        ratings_added INTEGER,
+        errors_total  INTEGER,
+        error         TEXT,
+        summary       TEXT,
+        guide_id      INTEGER
+    );
+    CREATE INDEX runs_guide ON runs(guide_id, started_at);
+
+    -- The enriched guides for the TV Guide page, replaced in one transaction per successful build.
+    CREATE TABLE guide_channels (
+        guide_id   INTEGER NOT NULL,
+        pos        INTEGER NOT NULL,
+        channel_id TEXT NOT NULL,
+        name       TEXT NOT NULL DEFAULT '',
+        logo       TEXT,
+        group_name TEXT,
+        PRIMARY KEY (guide_id, pos),
+        UNIQUE (guide_id, channel_id)
+    );
+    CREATE TABLE guide_programmes (
+        id          INTEGER PRIMARY KEY,
+        guide_id    INTEGER NOT NULL,
+        channel_pos INTEGER NOT NULL,
+        start       INTEGER NOT NULL,
+        stop        INTEGER NOT NULL,
+        title       TEXT NOT NULL DEFAULT '',
+        sub_title   TEXT,
+        episode     TEXT,
+        descr       TEXT,
+        icon        TEXT,
+        rating      TEXT,
+        categories  TEXT NOT NULL DEFAULT '[]',
+        group_name  TEXT,
+        star        TEXT
+    );
+    CREATE INDEX guide_channels_group ON guide_channels(guide_id, group_name);
+    CREATE INDEX guide_programmes_channel ON guide_programmes(guide_id, channel_pos, start);
+    CREATE INDEX guide_programmes_start ON guide_programmes(guide_id, start);
+    CREATE INDEX guide_programmes_stop ON guide_programmes(guide_id, stop);
+    CREATE TABLE missing_logos (
+        guide_id     INTEGER NOT NULL,
+        channel_id   TEXT NOT NULL,
+        display_name TEXT NOT NULL DEFAULT '',
+        PRIMARY KEY (guide_id, channel_id)
+    );
+
+    -- Channel logos: the tv-logos file list, and which source gave each channel its logo.
+    CREATE TABLE tv_logos (path TEXT PRIMARY KEY);
+    CREATE TABLE channel_logo_sources (
+        guide_id   INTEGER NOT NULL,
+        channel_id TEXT NOT NULL,
+        source     TEXT NOT NULL,
+        PRIMARY KEY (guide_id, channel_id)
+    );
+
+    -- TMDB results, and the titles each guide needs (saved by its build, so the
+    -- background lookups never have to read the sources again).
     CREATE TABLE tmdb_cache (
         cache_key      TEXT PRIMARY KEY,
         norm_title     TEXT NOT NULL,
@@ -44,185 +128,11 @@ const MIGRATIONS: &[&str] = &[
         language       TEXT NOT NULL,
         rating_country TEXT NOT NULL,
         fetched_at     INTEGER NOT NULL,
-        expires_at     INTEGER NOT NULL
+        expires_at     INTEGER NOT NULL,
+        imdb_id        TEXT,
+        imdb_checked   INTEGER NOT NULL DEFAULT 0
     );
     CREATE INDEX tmdb_cache_title ON tmdb_cache(norm_title);
-    CREATE TABLE runs (
-        id            INTEGER PRIMARY KEY AUTOINCREMENT,
-        started_at    INTEGER NOT NULL,
-        finished_at   INTEGER,
-        ok            INTEGER,
-        duration_secs REAL,
-        channels      INTEGER,
-        programmes    INTEGER,
-        logos_missing INTEGER,
-        posters_added INTEGER,
-        ratings_added INTEGER,
-        errors_total  INTEGER,
-        error         TEXT,
-        summary       TEXT
-    );
-    CREATE TABLE missing_logos (
-        channel_id   TEXT PRIMARY KEY,
-        display_name TEXT NOT NULL DEFAULT ''
-    );
-    "#,
-    // 2: enriched guide for the TV Guide page, replaced in one transaction per successful build
-    r#"
-    CREATE TABLE guide_channels (
-        pos        INTEGER PRIMARY KEY,
-        channel_id TEXT NOT NULL UNIQUE,
-        name       TEXT NOT NULL DEFAULT '',
-        logo       TEXT,
-        group_name TEXT
-    );
-    CREATE INDEX guide_channels_group ON guide_channels(group_name);
-    CREATE TABLE guide_programmes (
-        id          INTEGER PRIMARY KEY,
-        channel_pos INTEGER NOT NULL,
-        start       INTEGER NOT NULL,
-        stop        INTEGER NOT NULL,
-        title       TEXT NOT NULL DEFAULT '',
-        sub_title   TEXT,
-        episode     TEXT,
-        descr       TEXT,
-        icon        TEXT,
-        rating      TEXT,
-        categories  TEXT NOT NULL DEFAULT '[]',
-        group_name  TEXT
-    );
-    CREATE INDEX guide_programmes_channel ON guide_programmes(channel_pos, start);
-    CREATE INDEX guide_programmes_start ON guide_programmes(start);
-    CREATE INDEX guide_programmes_stop ON guide_programmes(stop);
-    "#,
-    // 3: tv-logos file list, a small key/value store, and which source gave each channel its logo
-    r#"
-    CREATE TABLE tv_logos (path TEXT PRIMARY KEY);
-    CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAULT '');
-    CREATE TABLE channel_logo_sources (channel_id TEXT PRIMARY KEY, source TEXT NOT NULL);
-    "#,
-    // 4: several guides, each with its own source and output. The existing source becomes guide 1, "main".
-    r#"
-    CREATE TABLE guides (
-        id            INTEGER PRIMARY KEY AUTOINCREMENT,
-        name          TEXT NOT NULL,
-        slug          TEXT NOT NULL UNIQUE,
-        source_url    TEXT NOT NULL DEFAULT '',
-        days          INTEGER,
-        refresh_hours REAL,
-        logo_country  TEXT,
-        enabled       INTEGER NOT NULL DEFAULT 1,
-        created_at    INTEGER NOT NULL DEFAULT 0,
-        sort_order    INTEGER NOT NULL DEFAULT 0
-    );
-    INSERT INTO guides (id, name, slug, source_url, days, enabled, created_at, sort_order)
-    SELECT 1, COALESCE(NULLIF(TRIM((SELECT value FROM settings WHERE key = 'main_guide_name')), ''), 'Main'), 'main',
-           COALESCE((SELECT value FROM settings WHERE key = 'source_url'), ''),
-           (SELECT CAST(value AS INTEGER) FROM settings WHERE key = 'days' AND value NOT IN ('', '0')),
-           1, CAST(strftime('%s', 'now') AS INTEGER), 0;
-
-    ALTER TABLE runs ADD COLUMN guide_id INTEGER;
-    UPDATE runs SET guide_id = 1;
-    CREATE INDEX runs_guide ON runs(guide_id, started_at);
-
-    DROP INDEX guide_channels_group;
-    DROP INDEX guide_programmes_channel;
-    DROP INDEX guide_programmes_start;
-    DROP INDEX guide_programmes_stop;
-    ALTER TABLE guide_channels RENAME TO guide_channels_v3;
-    ALTER TABLE guide_programmes RENAME TO guide_programmes_v3;
-    CREATE TABLE guide_channels (
-        guide_id   INTEGER NOT NULL,
-        pos        INTEGER NOT NULL,
-        channel_id TEXT NOT NULL,
-        name       TEXT NOT NULL DEFAULT '',
-        logo       TEXT,
-        group_name TEXT,
-        PRIMARY KEY (guide_id, pos),
-        UNIQUE (guide_id, channel_id)
-    );
-    INSERT INTO guide_channels (guide_id, pos, channel_id, name, logo, group_name)
-        SELECT 1, pos, channel_id, name, logo, group_name FROM guide_channels_v3;
-    CREATE TABLE guide_programmes (
-        id          INTEGER PRIMARY KEY,
-        guide_id    INTEGER NOT NULL,
-        channel_pos INTEGER NOT NULL,
-        start       INTEGER NOT NULL,
-        stop        INTEGER NOT NULL,
-        title       TEXT NOT NULL DEFAULT '',
-        sub_title   TEXT,
-        episode     TEXT,
-        descr       TEXT,
-        icon        TEXT,
-        rating      TEXT,
-        categories  TEXT NOT NULL DEFAULT '[]',
-        group_name  TEXT
-    );
-    INSERT INTO guide_programmes (id, guide_id, channel_pos, start, stop, title, sub_title, episode, descr, icon, rating, categories, group_name)
-        SELECT id, 1, channel_pos, start, stop, title, sub_title, episode, descr, icon, rating, categories, group_name FROM guide_programmes_v3;
-    DROP TABLE guide_programmes_v3;
-    DROP TABLE guide_channels_v3;
-    CREATE INDEX guide_channels_group ON guide_channels(guide_id, group_name);
-    CREATE INDEX guide_programmes_channel ON guide_programmes(guide_id, channel_pos, start);
-    CREATE INDEX guide_programmes_start ON guide_programmes(guide_id, start);
-    CREATE INDEX guide_programmes_stop ON guide_programmes(guide_id, stop);
-
-    DROP TABLE missing_logos;
-    CREATE TABLE missing_logos (
-        guide_id     INTEGER NOT NULL,
-        channel_id   TEXT NOT NULL,
-        display_name TEXT NOT NULL DEFAULT '',
-        PRIMARY KEY (guide_id, channel_id)
-    );
-    DROP TABLE channel_logo_sources;
-    CREATE TABLE channel_logo_sources (
-        guide_id   INTEGER NOT NULL,
-        channel_id TEXT NOT NULL,
-        source     TEXT NOT NULL,
-        PRIMARY KEY (guide_id, channel_id)
-    );
-    "#,
-    // 5: each guide's files are named after it; remember which files it wrote last so a rename
-    // can remove the old ones. Guide 1 wrote epg.xml before guides existed.
-    r#"
-    ALTER TABLE guides ADD COLUMN output_slug TEXT;
-    UPDATE guides SET output_slug = '__epg.xml__' WHERE id = 1;
-    "#,
-    // 6: IMDb star ratings: the IMDb id TMDB knows for each title, IMDb's ratings file, and the
-    // star rating shown in the TV Guide.
-    r#"
-    ALTER TABLE tmdb_cache ADD COLUMN imdb_id TEXT;
-    ALTER TABLE tmdb_cache ADD COLUMN imdb_checked INTEGER NOT NULL DEFAULT 0;
-    CREATE TABLE imdb_ratings (
-        tconst TEXT PRIMARY KEY,
-        rating REAL NOT NULL,
-        votes  INTEGER NOT NULL
-    ) WITHOUT ROWID;
-    ALTER TABLE guide_programmes ADD COLUMN star TEXT;
-    "#,
-    // 7: TVmaze results for series TMDB has no match (or no poster) for.
-    r#"
-    CREATE TABLE tvmaze_cache (
-        norm_title TEXT PRIMARY KEY,
-        found      INTEGER NOT NULL,
-        poster     TEXT,
-        summary    TEXT,
-        genres     TEXT NOT NULL DEFAULT '',
-        fetched_at INTEGER NOT NULL
-    ) WITHOUT ROWID;
-    "#,
-    // 8: TheSportsDB events for sports programmes without a poster.
-    r#"
-    CREATE TABLE sportsdb_cache (
-        query      TEXT PRIMARY KEY,
-        found      INTEGER NOT NULL,
-        poster     TEXT,
-        fetched_at INTEGER NOT NULL
-    ) WITHOUT ROWID;
-    "#,
-    // 9: the titles each guide needs from TMDB, saved by its build, so the background
-    // lookups never have to download and read the (possibly huge) sources again.
-    r#"
     CREATE TABLE tmdb_wanted (
         guide_id    INTEGER NOT NULL,
         cache_key   TEXT NOT NULL,
@@ -232,6 +142,27 @@ const MIGRATIONS: &[&str] = &[
         is_tv       INTEGER NOT NULL,
         first_start INTEGER NOT NULL,
         PRIMARY KEY (guide_id, cache_key)
+    ) WITHOUT ROWID;
+
+    -- IMDb's ratings file; TVmaze and TheSportsDB results.
+    CREATE TABLE imdb_ratings (
+        tconst TEXT PRIMARY KEY,
+        rating REAL NOT NULL,
+        votes  INTEGER NOT NULL
+    ) WITHOUT ROWID;
+    CREATE TABLE tvmaze_cache (
+        norm_title TEXT PRIMARY KEY,
+        found      INTEGER NOT NULL,
+        poster     TEXT,
+        summary    TEXT,
+        genres     TEXT NOT NULL DEFAULT '',
+        fetched_at INTEGER NOT NULL
+    ) WITHOUT ROWID;
+    CREATE TABLE sportsdb_cache (
+        query      TEXT PRIMARY KEY,
+        found      INTEGER NOT NULL,
+        poster     TEXT,
+        fetched_at INTEGER NOT NULL
     ) WITHOUT ROWID;
     "#,
 ];
@@ -292,6 +223,7 @@ pub fn settings(conn: &Connection) -> Result<HashMap<String, String>> {
     Ok(out)
 }
 
+#[cfg(test)]
 pub fn set_setting(conn: &Connection, key: &str, value: &str) -> Result<()> {
     conn.execute(
         "INSERT INTO settings (key, value) VALUES (?1, ?2) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
@@ -475,7 +407,7 @@ pub fn replace_guide(conn: &Connection, guide_id: i64, channels: &[GuideChannel]
 
 // ---------------------------------------------------------------- guides
 
-/// One guide: its own XMLTV source and output. Guide "main" writes epg.xml.
+/// One guide: its own XMLTV source and output (guides/<slug>.xml).
 #[derive(Debug, Clone, PartialEq)]
 pub struct Guide {
     pub id: i64,
@@ -486,12 +418,9 @@ pub struct Guide {
     pub refresh_hours: Option<f64>,
     pub logo_country: Option<String>,
     pub enabled: bool,
-    /// The slug of the files this guide wrote last (LEGACY_OUTPUT = epg.xml), so a rename can remove them.
+    /// The slug of the files this guide wrote last, so a rename can remove them.
     pub output_slug: Option<String>,
 }
-
-/// `output_slug` of guide 1 before guides existed: it wrote epg.xml, epg.xml.gz and status.json.
-pub const LEGACY_OUTPUT: &str = "__epg.xml__";
 
 pub fn guides(conn: &Connection) -> Result<Vec<Guide>> {
     let mut st = conn.prepare(
@@ -685,53 +614,6 @@ pub fn last_run_started(conn: &Connection, guide_id: i64) -> Result<Option<i64>>
         .flatten())
 }
 
-// ---------------------------------------------------------------- import
-
-/// Import <data_dir>/config.toml and channels.toml once, if they exist and
-/// the database has nothing yet. The files are left in place.
-pub fn import_legacy(conn: &Connection, data_dir: &Path) -> Result<()> {
-    let cfg_path = data_dir.join("config.toml");
-    let has_settings: i64 = conn.query_row("SELECT COUNT(*) FROM settings", [], |r| r.get(0))?;
-    if has_settings == 0 && cfg_path.exists() {
-        let text = std::fs::read_to_string(&cfg_path)?;
-        let cfg = Config::parse_toml(&text, data_dir).with_context(|| format!("importing {}", cfg_path.display()))?;
-        for (k, v) in cfg.to_settings() {
-            set_setting(conn, k, &v)?;
-        }
-        // The guides table was created before this import; give guide 1 the imported source.
-        conn.execute(
-            "UPDATE guides SET source_url = ?1 WHERE id = 1 AND source_url = ''",
-            params![cfg.source_url],
-        )?;
-        println!("Imported settings from {}", cfg_path.display());
-        import_channels(conn, &cfg.channels_file)?;
-    } else {
-        import_channels(conn, &data_dir.join("channels.toml"))?;
-    }
-    Ok(())
-}
-
-fn import_channels(conn: &Connection, path: &Path) -> Result<()> {
-    let has: i64 = conn.query_row("SELECT COUNT(*) FROM channel_overrides", [], |r| r.get(0))?;
-    let imported: Option<String> = conn
-        .query_row("SELECT value FROM settings WHERE key = 'imported_channels_toml'", [], |r| r.get(0))
-        .optional()?;
-    if has > 0 || imported.is_some() || !path.exists() {
-        return Ok(());
-    }
-    let file = crate::config::load_channels_toml(path)?;
-    let now = crate::timeutil::now_unix();
-    for (id, o) in &file.channels {
-        conn.execute(
-            "INSERT OR REPLACE INTO channel_overrides (channel_id, logo_url, group_name, updated_at) VALUES (?1, ?2, ?3, ?4)",
-            params![id, o.logo.clone().unwrap_or_default(), o.group.clone().unwrap_or_default(), now],
-        )?;
-    }
-    set_setting(conn, "imported_channels_toml", "1")?;
-    println!("Imported {} channel overrides from {}", file.channels.len(), path.display());
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -837,54 +719,9 @@ mod tests {
     }
 
     #[test]
-    fn single_source_becomes_guide_main() {
-        // A database from before guides existed: schema 3, one source in the settings.
-        let conn = Connection::open_in_memory().unwrap();
-        conn.execute_batch("CREATE TABLE schema_version (version INTEGER NOT NULL);").unwrap();
-        for (i, sql) in MIGRATIONS.iter().take(3).enumerate() {
-            conn.execute_batch(sql).unwrap();
-            conn.execute("INSERT INTO schema_version (version) VALUES (?1)", params![i as i64 + 1]).unwrap();
-        }
-        set_setting(&conn, "source_url", "http://x/guide.xml").unwrap();
-        set_setting(&conn, "days", "4").unwrap();
-        conn.execute("INSERT INTO guide_channels (pos, channel_id, name) VALUES (0, 'A.uk', 'A')", []).unwrap();
-        conn.execute("INSERT INTO runs (started_at) VALUES (50)", []).unwrap();
-        migrate(&conn).unwrap();
-
-        let g = guides(&conn).unwrap();
-        assert_eq!(g.len(), 1);
-        assert_eq!(
-            (g[0].id, g[0].slug.as_str(), g[0].name.as_str(), g[0].source_url.as_str(), g[0].days),
-            (1, "main", "Main", "http://x/guide.xml", Some(4))
-        );
-        assert!(g[0].enabled);
-        let n: i64 = conn.query_row("SELECT COUNT(*) FROM guide_channels WHERE guide_id = 1", [], |r| r.get(0)).unwrap();
-        assert_eq!(n, 1, "the stored guide is kept for guide 1");
-        assert_eq!(last_run_started(&conn, 1).unwrap(), Some(50));
-        assert_eq!(g[0].output_slug.as_deref(), Some(LEGACY_OUTPUT), "guide 1 owned epg.xml");
-    }
-
-    #[test]
-    fn saved_name_carries_over_and_sets_the_file_name() {
-        let conn = Connection::open_in_memory().unwrap();
-        conn.execute_batch("CREATE TABLE schema_version (version INTEGER NOT NULL);").unwrap();
-        for (i, sql) in MIGRATIONS.iter().take(3).enumerate() {
-            conn.execute_batch(sql).unwrap();
-            conn.execute("INSERT INTO schema_version (version) VALUES (?1)", params![i as i64 + 1]).unwrap();
-        }
-        set_setting(&conn, "main_guide_name", "US Locals").unwrap();
-        migrate(&conn).unwrap();
-        sync_slugs(&conn).unwrap();
-        let g = guides(&conn).unwrap();
-        assert_eq!((g[0].name.as_str(), g[0].slug.as_str()), ("US Locals", "us-locals"));
-    }
-
-    #[test]
-    fn fresh_database_has_an_empty_main_guide() {
+    fn fresh_database_has_no_guides() {
         let conn = open_memory();
-        let g = guides(&conn).unwrap();
-        assert_eq!(g.len(), 1);
-        assert_eq!((g[0].slug.as_str(), g[0].source_url.as_str(), g[0].days), ("main", "", None));
+        assert!(guides(&conn).unwrap().is_empty());
     }
 
     #[test]
@@ -899,8 +736,7 @@ mod tests {
     #[test]
     fn sync_slugs_keeps_them_unique() {
         let conn = open_memory();
-        conn.execute("UPDATE guides SET name = 'News' WHERE id = 1", []).unwrap();
-        conn.execute("INSERT INTO guides (name, slug, sort_order) VALUES ('News', 'other', 1), ('Sport', 'sport', 2)", [])
+        conn.execute("INSERT INTO guides (name, slug, sort_order) VALUES ('News', 'main', 0), ('News', 'other', 1), ('Sport', 'sport', 2)", [])
             .unwrap();
         sync_slugs(&conn).unwrap();
         sync_slugs(&conn).unwrap();

@@ -2,7 +2,7 @@
 //!
 //! The API key is only ever sent to api.themoviedb.org. Error messages are
 //! built without request URLs, so a v3 key in the query string cannot leak
-//! into logs or status.json.
+//! into logs or status files.
 
 use anyhow::{anyhow, bail, Context, Result};
 use rusqlite::{params, Connection};

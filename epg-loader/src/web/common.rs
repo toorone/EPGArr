@@ -109,11 +109,6 @@ pub fn source_label(src: &str) -> String {
     }
 }
 
-/// "US Locals!" -> "us-locals" (the same rule as the program uses).
-pub fn slugify(name: &str) -> String {
-    db::slugify(name)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

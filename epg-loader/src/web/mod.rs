@@ -1,10 +1,9 @@
-//! `epg-loader serve`: the EPGArr web pages, served by the program itself
-//! (no PHP, no nginx). The same process also runs the scheduler (the
+//! `epg-loader serve`: the EPGArr web pages, served by the program itself.
+//! The same process also runs the scheduler (the
 //! `watch` loop), so one container runs one program.
 //!
 //! Pages: /, /guides, /tv, /activity, /settings; data for the page scripts:
-//! /api/guide, /api/logo. The old PHP addresses (index.php, guides.php, ...)
-//! redirect to the new ones so bookmarks keep working.
+//! /api/guide, /api/logo.
 
 pub mod activity;
 pub mod auth;
@@ -21,7 +20,7 @@ use axum::body::Body;
 use axum::extract::{Path as UrlPath, State};
 use axum::http::{header, HeaderMap, HeaderValue, StatusCode};
 use axum::response::{IntoResponse, Response};
-use axum::routing::{any, get, post};
+use axum::routing::{get, post};
 use axum::Router;
 use rusqlite::Connection;
 use std::collections::HashMap;
@@ -309,29 +308,6 @@ pub async fn read_post(req: axum::extract::Request, max_file: usize) -> (guides:
     (guides::Posted(fields), files)
 }
 
-/// The old PHP addresses: a permanent redirect to the new one (308 keeps a POST a POST).
-async fn old_address(UrlPath(old): UrlPath<String>, uri: axum::http::Uri) -> Response {
-    let new = match old.as_str() {
-        "index.php" => "/",
-        "guides.php" => "/guides",
-        "guide.php" => "/tv",
-        "activity.php" => "/activity",
-        "settings.php" => "/settings",
-        "guide_api.php" => "/api/guide",
-        "logo_api.php" => "/api/logo",
-        _ => return StatusCode::NOT_FOUND.into_response(),
-    };
-    let to = match uri.query() {
-        Some(q) => format!("{new}?{q}"),
-        None => new.to_string(),
-    };
-    let mut r = StatusCode::PERMANENT_REDIRECT.into_response();
-    if let Ok(v) = HeaderValue::from_str(&to) {
-        r.headers_mut().insert(header::LOCATION, v);
-    }
-    r
-}
-
 pub fn router(app: Shared) -> Router {
     Router::new()
         .route("/", get(dash::page_get))
@@ -343,7 +319,6 @@ pub fn router(app: Shared) -> Router {
         .route("/api/logo", get(logo::info).post(logo::post).layer(axum::extract::DefaultBodyLimit::max(4 << 20)))
         .route("/tv", get(tv::guide_page))
         .route("/api/guide", get(tv::guide_api))
-        .route("/{old}", any(old_address))
         .route("/assets/{*rel}", get(assets))
         .route("/guides/{*rel}", get(guide_files))
         .route("/logos/{*rel}", get(logo_files))

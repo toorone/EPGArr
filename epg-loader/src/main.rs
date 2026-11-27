@@ -56,7 +56,7 @@ static TERMINATED: AtomicBool = AtomicBool::new(false);
 /// The web pages create this file in the data dir to ask a running build to stop.
 const CANCEL_FILE: &str = "cancel";
 
-/// The build was cancelled. epg.xml was not touched; cached TMDB results were saved.
+/// The build was cancelled. The guide files were not touched; cached TMDB results were saved.
 #[derive(Debug)]
 struct Cancelled;
 
@@ -117,7 +117,7 @@ async fn watch_cancel(flag: PathBuf) {
         }
     };
     CANCEL.store(true, Ordering::Relaxed);
-    println!("Cancelling ({why}): stopping, saving the TMDB results so far, keeping the previous epg.xml");
+    println!("Cancelling ({why}): stopping, saving the TMDB results so far, keeping the previous guide files");
 }
 
 const MAX_LISTED_ERRORS: usize = 50;
@@ -164,10 +164,10 @@ struct Cli {
     /// Data dir holding epg.db, rules.toml, build.lock and cache/ (keep it outside the web root)
     #[arg(long, global = true, env = "EPG_LOADER_DIR")]
     data_dir: Option<PathBuf>,
-    /// Folder for epg.xml, epg.xml.gz and status.json (overrides the output_dir setting)
+    /// Folder for guides/ and logos/ (overrides the output_dir setting)
     #[arg(long, global = true, env = "EPG_OUTPUT_DIR")]
     output_dir: Option<PathBuf>,
-    /// Run everything but write no epg.xml, epg.xml.gz or status.json, and record no run
+    /// Run everything but write no guide files, and record no run
     #[arg(long, global = true)]
     dry_run: bool,
     /// Make no TMDB requests (results already in the cache are still used)
@@ -213,7 +213,7 @@ struct Opts {
     no_tmdb: bool,
 }
 
-/// Written to <output_dir>/status.json for the pages, and stored as the
+/// Written to guides/status-<id>.json for the pages, and stored as the
 /// run summary in epg.db. Never contains the TMDB key or the source URL.
 #[derive(Debug, Default, Serialize, Deserialize)]
 #[serde(default)]
@@ -451,11 +451,10 @@ fn is_due(conn: &Connection, guide_id: i64, cfg: &Config) -> bool {
     timeutil::now_unix() - last >= (cfg.refresh_hours * 3600.0) as i64
 }
 
-/// Open (and migrate) epg.db, import a legacy config once, and make sure an
+/// Open (and migrate) epg.db and make sure an
 /// editable rules.toml exists.
 fn open_data_dir(data_dir: &Path) -> Result<Connection> {
     let conn = db::open(data_dir)?;
-    db::import_legacy(&conn, data_dir)?;
     db::sync_slugs(&conn)?;
     let rules = data_dir.join("rules.toml");
     if !rules.exists() {
@@ -509,7 +508,7 @@ struct Target {
     xml: PathBuf,
     gz: PathBuf,
     status: PathBuf,
-    /// Files from before a rename (or the old epg.xml), removed after the next successful build.
+    /// Files from before a rename, removed after the next successful build.
     old_slug: Option<String>,
     old_files: Vec<PathBuf>,
 }
@@ -520,9 +519,6 @@ impl Target {
         let old_slug = g.output_slug.clone().filter(|o| !o.is_empty() && *o != g.slug);
         let old_files = match old_slug.as_deref() {
             None => Vec::new(),
-            Some(db::LEGACY_OUTPUT) => {
-                vec![output_dir.join("epg.xml"), output_dir.join("epg.xml.gz"), output_dir.join("status.json")]
-            }
             Some(o) => vec![dir.join(format!("{o}.xml")), dir.join(format!("{o}.xml.gz"))],
         };
         Target {
@@ -540,7 +536,7 @@ impl Target {
     /// unless another guide writes files with that name now, and remember the new name.
     fn retire_old_files(&self, conn: &Connection) {
         if let Some(old) = self.old_slug.as_deref() {
-            let shared = old != db::LEGACY_OUTPUT && db::slug_in_use(conn, old, self.id).unwrap_or(true);
+            let shared = db::slug_in_use(conn, old, self.id).unwrap_or(true);
             if !shared {
                 for f in &self.old_files {
                     match std::fs::remove_file(f) {
@@ -681,7 +677,7 @@ async fn build_once(conn: &Connection, cfg: &Config, target: &Target, opts: Opts
                 s.last_attempt_unix = now;
             });
             if let Err(e2) = res {
-                eprintln!("error: could not write status.json: {e2:#}");
+                eprintln!("error: could not write the status file: {e2:#}");
             }
             let finished = db::finish_run(
                 conn,
@@ -799,7 +795,7 @@ const GUIDE_KEEP_PAST_SECS: i64 = 86_400;
 const GUIDE_DEFAULT_SECS: i64 = 1_800;
 
 /// Store the enriched channels and programmes for the TV Guide page. Called only
-/// after epg.xml was written, so a cancelled or failed build keeps the old ones.
+/// after the guide files were written, so a cancelled or failed build keeps the old ones.
 fn store_guide(
     conn: &Connection,
     guide_id: i64,

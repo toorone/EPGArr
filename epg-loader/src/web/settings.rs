@@ -33,9 +33,8 @@ fn checked(on: bool) -> &'static str {
 // ---------------------------------------------------------------- backups
 //
 // A backup is one gzipped JSON file in <data dir>/backups/: the settings, the
-// guides, channel overrides, users and the custom channel logos (the same
-// format the PHP pages wrote, so old backups restore). The newest BACKUP_KEEP
-// are kept. Restoring makes a backup of the current state first.
+// guides, channel overrides, users and the custom channel logos. The newest
+// BACKUP_KEEP are kept. Restoring makes a backup of the current state first.
 
 pub struct Backup {
     pub name: String,

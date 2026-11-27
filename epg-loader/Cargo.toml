@@ -24,7 +24,7 @@ toml = "0.8"
 axum = { version = "0.8", features = ["multipart"] }
 tokio-util = { version = "0.7", features = ["io"] }
 bcrypt = "0.17"
-# Custom logo file names (the same names the PHP pages used).
+# Custom logo file names.
 sha2 = "0.10"
 base64 = "0.22"
 # Local times on the pages (uses TZ and the system time zone database).

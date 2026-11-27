@@ -10,9 +10,8 @@ update.
 - **No more `.php` in any address.** The pages are now `/`, `/guides`, `/tv`
   (TV Guide), `/activity` and `/settings`; the page scripts use `/api/guide`
   and `/api/logo`. The old addresses (`index.php`, `guides.php`, `guide.php`,
-  `activity.php`, `settings.php`, `guide_api.php`, `logo_api.php`) redirect to
-  the new ones, so bookmarks keep working. Guide files are unchanged
-  (`/guides/<name>.xml`).
+  `activity.php`, `settings.php`, `guide_api.php`, `logo_api.php`) are gone.
+  Guide files are unchanged (`/guides/<name>.xml`).
 - Install and update from the published image: `docker pull
   ghcr.io/toorone/epgarr:latest` (README and `docker-compose.yml` now use it
   instead of building from the source).
@@ -25,6 +24,16 @@ update.
   `ghcr.io/toorone/epgarr:latest` (and a tag per commit) on every push to `main`.
 
 ### Removed
+- Everything kept only for upgrading old installs (EPGArr starts fresh from
+  the published image): the redirects from the old `.php` addresses, the
+  one-time import of `config.toml` / `channels.toml`, the `admin.json`
+  single-password login, and the README section on moving an old install over.
+- The database upgrade steps from older versions: a new database is created
+  in one step with the current tables. A fresh install no longer starts with an
+  empty "Main" guide (which made every scheduled build log an error); you add
+  your first guide from the Dashboard's Get started steps.
+- The old single `epg.xml` / `status.json` output and the code that cleaned it
+  up.
 - Old development leftovers: `epg-loader/config.example.toml`, ignore rules
   for the old web folder (`epg.xml`, `status*.json`, `setup-paths.php`), and
   references to the Setup page, `settings.php`, `index.html`, the web folder

@@ -55,16 +55,6 @@ The database is upgraded automatically when the container starts. Your data in `
 
 To build the image yourself instead: clone the repository and run `docker build -t ghcr.io/toorone/epgarr:latest .` in it.
 
-Coming from the PHP version of the container: nothing to do. Users and passwords, guides, backups and custom logos carry over and the guide addresses stay the same; everyone just logs in once more.
-
-## Moving an existing (non-Docker) install over
-
-1. Stop the old schedule: `crontab -e` and remove the line ending in `# epg-loader`.
-2. Copy the old data folder (usually `/var/lib/epg-loader`) into `./data`: `epg.db`, `users.json` (or `admin.json`), `rules.toml` and `backups/` are what matter.
-3. Copy custom channel logos from the old web folder's `logos/custom/` to `./data/logos/custom/`.
-4. `docker compose up -d`, log in with your existing account, and press **Build all guides now** on the Activity page.
-5. Point your media server at the new guide addresses shown on the Guides page.
-
 ## Behind a reverse proxy
 
 Proxy to port 8080. Pass `Host` and `X-Forwarded-Proto` so the guide addresses shown in the pages use your public URL.
