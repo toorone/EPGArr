@@ -7,6 +7,7 @@ update.
 ## Unreleased
 
 ### Changed
+- Menu order: Dashboard, TV Guide, Activity, Settings, Guides.
 - **No more `.php` in any address.** The pages are now `/`, `/guides`, `/tv`
   (TV Guide), `/activity` and `/settings`; the page scripts use `/api/guide`
   and `/api/logo`. The old addresses (`index.php`, `guides.php`, `guide.php`,
@@ -17,6 +18,9 @@ update.
   instead of building from the source).
 
 ### Added
+- The **Activity** menu item lights up (green, glowing, with a dot) while a
+  guide build, source test or background lookup is running, and goes back to
+  normal when it finishes. It checks every few seconds (`/api/busy`).
 - **Get started** on the Dashboard after a fresh install: until the first guide
   exists, the Dashboard shows the steps (add a guide, optional TMDB key, build
   and add the address to your media server) with buttons to each.

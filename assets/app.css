@@ -768,3 +768,9 @@ table.runs tr.run-detail td { background: rgba(255, 255, 255, 0.02); padding: 0.
 .start-steps li.done::before { content: "¹3"; background: var(--ok, #22c55e); }
 .start-steps p { margin: 0.25rem 0 0.6rem; }
 .start-steps li > :last-child { margin-bottom: 0; }
+
+/* Activity menu item lights up while something runs. */
+.nav a.item.running svg { color: #3fbf7f; filter: drop-shadow(0 0 6px rgba(63, 191, 127, 0.75)); animation: nav-glow 1.6s ease-in-out infinite; }
+.nav a.item.running .label::after { content: ""; display: inline-block; width: 7px; height: 7px; margin-left: 0.5rem; border-radius: 50%; background: #3fbf7f; box-shadow: 0 0 0 3px rgba(63, 191, 127, 0.2); vertical-align: middle; animation: act-pulse 1.6s infinite; }
+@keyframes nav-glow { 50% { filter: drop-shadow(0 0 1px rgba(63, 191, 127, 0.2)); opacity: 0.7; } }
+@media (prefers-reduced-motion: reduce) { .nav a.item.running svg, .nav a.item.running .label::after { animation: none; } }

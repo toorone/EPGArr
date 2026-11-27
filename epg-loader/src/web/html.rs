@@ -103,15 +103,19 @@ pub fn page(ctx: &Ctx, active: &str, title: &str, tools: &str, body: &str) -> St
         format!(r#"<div class="page-head page-tools">{tools}</div>"#)
     };
     format!(
-        r#"{head}<body><div class="layout"><nav class="nav" aria-label="Main"><div class="brand"><span class="brand-mark">{logo}</span><span>{APP_NAME}</span></div>{a}{b}{c}{d}{e}<div class="nav-spacer"></div>{nav_auth}</nav><div class="content">{top}<main class="page-{active}{wide}">{fl}{body}</main></div></div></body></html>"#,
+        r#"{head}<body><div class="layout"><nav class="nav" aria-label="Main"><div class="brand"><span class="brand-mark">{logo}</span><span>{APP_NAME}</span></div>{a}{b}{c}{d}{e}<div class="nav-spacer"></div>{nav_auth}</nav><div class="content">{top}<main class="page-{active}{wide}">{fl}{body}</main></div></div>{busy}</body></html>"#,
         head = head(title),
         logo = icon("logo"),
         a = item("dashboard", "./", "Dashboard", "dashboard"),
-        b = item("guides", "guides", "Guides", "list"),
-        c = item("guide", "tv", "TV Guide", "grid"),
-        d = item("activity", "activity", "Activity", "pulse"),
-        e = item("settings", "settings", "Settings", "settings"),
+        b = item("guide", "tv", "TV Guide", "grid"),
+        c = item("activity", "activity", "Activity", "pulse").replacen("<a class=\"item", "<a id=\"nav-activity\" class=\"item", 1),
+        d = item("settings", "settings", "Settings", "settings"),
+        e = item("guides", "guides", "Guides", "list"),
         wide = if active == "guide" { " wide" } else { "" },
         fl = flashes(&ctx.flashes),
+        busy = if ctx.user.is_some() { BUSY_SCRIPT } else { "" },
     )
 }
+
+/// Lights up the Activity menu item while a build, test or background lookup runs.
+const BUSY_SCRIPT: &str = r#"<script>(function(){var a=document.getElementById('nav-activity');if(!a)return;var t;function check(){fetch('api/busy',{credentials:'same-origin',cache:'no-store'}).then(function(r){return r.json();}).then(function(j){a.classList.toggle('running',!!j.busy);a.title=j.busy?('Activity: '+j.what+' running'):'Activity';}).catch(function(){}).then(function(){clearTimeout(t);t=setTimeout(check,document.hidden?30000:4000);});}check();document.addEventListener('visibilitychange',function(){if(!document.hidden)check();});})();</script>"#;

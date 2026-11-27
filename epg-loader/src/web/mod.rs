@@ -345,6 +345,24 @@ pub async fn read_post(req: axum::extract::Request, max_file: usize) -> (guides:
     (guides::Posted(fields), files)
 }
 
+/// Is anything running? For the Activity menu item's light.
+async fn busy(State(app): State<Shared>, headers: HeaderMap) -> Response {
+    let ctx = app.ctx(&headers);
+    if ctx.user.is_none() {
+        return json(&ctx, StatusCode::UNAUTHORIZED, serde_json::json!({ "busy": false }));
+    }
+    let mut what: Vec<String> = Vec::new();
+    if let Some(j) = app.jobs.running() {
+        what.push(j.label);
+    } else if jobs::build_running(&app) {
+        what.push("Guide build".into());
+    }
+    if jobs::enrich_running(&app) {
+        what.push("background lookups".into());
+    }
+    json(&ctx, StatusCode::OK, serde_json::json!({ "busy": !what.is_empty(), "what": what.join(" and ") }))
+}
+
 pub fn router(app: Shared) -> Router {
     Router::new()
         .route("/", get(dash::page_get))
@@ -356,6 +374,7 @@ pub fn router(app: Shared) -> Router {
         .route("/api/logo", get(logo::info).post(logo::post).layer(axum::extract::DefaultBodyLimit::max(4 << 20)))
         .route("/tv", get(tv::guide_page))
         .route("/api/guide", get(tv::guide_api))
+        .route("/api/busy", get(busy))
         .route("/assets/{*rel}", get(assets))
         .route("/guides/{*rel}", get(guide_files))
         .route("/logos/{*rel}", get(logo_files))
