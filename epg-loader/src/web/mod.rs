@@ -5,8 +5,10 @@
 //! The URLs are the same as the old PHP pages (index.php, guides.php,
 //! guide_api.php, ...) so bookmarks and the page scripts keep working.
 
+pub mod activity;
 pub mod auth;
 pub mod common;
+pub mod dash;
 pub mod guides;
 pub mod html;
 pub mod jobs;
@@ -241,11 +243,12 @@ async fn logo_files(State(app): State<Shared>, UrlPath(rel): UrlPath<String>) ->
 
 pub fn router(app: Shared) -> Router {
     Router::new()
-        .route("/", get(tv::dashboard_placeholder))
-        .route("/index.php", get(tv::dashboard_placeholder))
+        .route("/", get(dash::page_get))
+        .route("/index.php", get(dash::page_get))
         .route("/login", post(auth::login_post))
         .route("/logout", post(auth::logout_post))
         .route("/guides.php", get(guides::page_get).post(guides::page_post))
+        .route("/activity.php", get(activity::page_get).post(activity::page_post))
         .route("/guide.php", get(tv::guide_page))
         .route("/guide_api.php", get(tv::guide_api))
         .route("/assets/{*rel}", get(assets))

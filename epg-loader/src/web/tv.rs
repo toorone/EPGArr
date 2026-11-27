@@ -12,11 +12,6 @@ use super::{auth, html_page, json, Ctx, Shared};
 use crate::db;
 use crate::timeutil;
 
-/// Stage 1 of the Rust pages: until the Dashboard is ported, "/" shows the TV Guide.
-pub async fn dashboard_placeholder(state: State<Shared>, headers: HeaderMap, q: Query<HashMap<String, String>>) -> Response {
-    guide_page(state, headers, q).await
-}
-
 /// The guide to show: ?guide=slug, else the first one that is on.
 fn pick_guide<'a>(guides: &'a [db::Guide], slug: &str) -> Option<&'a db::Guide> {
     guides
