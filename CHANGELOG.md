@@ -23,6 +23,10 @@ update.
   instead of building from the source).
 
 ### Added
+- **GitHub releases** follow this changelog: each version here becomes a
+  release (tag `vX.Y.Z`) with its section as the release notes, made
+  automatically when it reaches `main`. The image is also tagged with its
+  version (`ghcr.io/toorone/epgarr:0.3.0`) besides `latest`.
 - The version (e.g. `EPGArr v0.3.0`) is shown at the bottom of the menu and
   links to this changelog. When GitHub has a newer version it lights up green
   with "v… available". The check runs every 6 hours and can be turned off in
