@@ -41,6 +41,9 @@ update.
   `--guide`, `--listen` and `--assets` and the newer source files.
 
 ### Fixed
+- GitHub build check warned that Node.js 20 is deprecated: the workflow now
+  uses the Node.js 24 versions of its actions (checkout v7, setup-buildx v4,
+  login v4, build-push v7).
 - **Test source** in the add/edit guide dialog said "Could not start the test",
   and dragging guides into a new order did nothing: the Guides page did not
   accept the way its own script sends forms. The Guides and Activity pages now
