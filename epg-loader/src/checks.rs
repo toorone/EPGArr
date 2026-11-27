@@ -12,7 +12,7 @@ fn result(ok: bool, detail: impl Into<String>) -> Value {
     json!({ "ok": ok, "detail": detail.into() })
 }
 
-/// `source`: the guide source to test (the first guide, or --guide); None falls back to the settings.
+/// `source`: the guide source to test (the first guide, or --guide); None when there is no guide yet.
 pub async fn run(conn: &Connection, data_dir: &Path, _output_dir: Option<&Path>, source: Option<String>) -> Value {
     let settings = db::settings(conn).unwrap_or_default();
     let get = |k: &str| settings.get(k).map(|v| v.trim().to_string()).unwrap_or_default();
@@ -20,7 +20,7 @@ pub async fn run(conn: &Connection, data_dir: &Path, _output_dir: Option<&Path>,
         .ok()
         .filter(|k| !k.trim().is_empty())
         .unwrap_or_else(|| get("tmdb_api_key"));
-    let src = source.map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).unwrap_or_else(|| get("source_url"));
+    let src = source.map(|s| s.trim().to_string()).unwrap_or_default();
 
     let client = match reqwest::Client::builder()
         .user_agent(concat!("epg-loader/", env!("CARGO_PKG_VERSION")))

@@ -1,6 +1,6 @@
 //! EPGArr (epg-loader): enrich XMLTV guides for media servers (Emby, Plex, Jellyfin or any XMLTV client).
 //!
-//!   epg-loader migrate - create or upgrade epg.db (and import an old config.toml once)
+//!   epg-loader migrate - create or upgrade epg.db
 //!   epg-loader build   - build once (the default when no command is given)
 //!   epg-loader watch   - rebuild every refresh_hours; settings are reread every minute
 //!   epg-loader enrich  - look up every pending TMDB title (no time budget), then rebuild

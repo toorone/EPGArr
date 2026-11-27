@@ -13,7 +13,6 @@ use crate::timeutil;
 pub struct Job {
     pub name: String,
     pub label: String,
-    pub started: i64,
     pub pid: u32,
     /// Exit code once finished.
     pub exit: Option<i32>,
@@ -28,9 +27,6 @@ pub struct Jobs {
 impl Jobs {
     pub fn running(&self) -> Option<Job> {
         self.current.lock().unwrap().clone().filter(|j| j.exit.is_none())
-    }
-    pub fn last(&self) -> Option<Job> {
-        self.current.lock().unwrap().clone()
     }
 }
 
@@ -139,7 +135,7 @@ pub fn start(app: &Shared, name: &str, label: &str, args: &[&str], stdout_to: Op
     };
     let _ = crate::output::write_atomic(&app.data_dir.join(RUNNING_FILE), &serde_json::to_vec(&marker).unwrap_or_default());
     *app.jobs.current.lock().unwrap() =
-        Some(Job { name: name.to_string(), label: label.to_string(), started: timeutil::now_unix(), pid, exit: None, cancelled: false });
+        Some(Job { name: name.to_string(), label: label.to_string(), pid, exit: None, cancelled: false });
     let app2 = app.clone();
     tokio::spawn(async move {
         let code = child.wait().await.ok().and_then(|s| s.code()).unwrap_or(-1);

@@ -4,6 +4,19 @@ Every change to EPGArr is written down here, newest first. Each release lists
 what was added, changed, fixed and removed, and anything you must do when you
 update.
 
+## 0.4.2 — 2026-11-27
+
+### Removed
+- The last pieces of the old single-guide setup:
+  - the global "source URL" and "days to keep" settings (each guide has its
+    own, on the Guides page), and the connection test's fallback to them;
+  - the `output_dir` setting the Settings page used to save: guide files and
+    logos go to the data folder (`/data`) unless `EPG_OUTPUT_DIR` says
+    otherwise;
+  - the hidden "legacy guide" switch in the add/edit guide dialog;
+  - the old config-file format support in the settings code, and some unused
+    code.
+
 ## 0.4.1 — 2026-11-27
 
 ### Changed

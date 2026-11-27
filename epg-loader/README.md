@@ -90,7 +90,7 @@ epg-loader --data-dir DIR [--output-dir DIR] [--dry-run] [--no-tmdb] [--if-due] 
   info      print version and expected schema version as JSON
 
   --data-dir / EPG_LOADER_DIR     the data folder (required)
-  --output-dir / EPG_OUTPUT_DIR   where guides/ and logos/ go (else the output_dir setting)
+  --output-dir / EPG_OUTPUT_DIR   where guides/ and logos/ go (default: the data folder)
   --guide SLUG                    build or check one guide only
   --listen / EPGARR_LISTEN        serve: address to listen on (default 0.0.0.0:80)
   --assets / EPGARR_ASSETS        serve: page assets folder (default /app/assets)

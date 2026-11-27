@@ -118,7 +118,6 @@
         $('g-hours').value = d.refresh_hours || '';
         $('g-lc').value = d.logo_country || '';
         $('g-enabled').checked = d.enabled !== false;
-        form.querySelectorAll('.g-only-new-schema').forEach(function (e) { e.hidden = !!d.legacy; });
         $('g-test-out').className = 'hint';
         $('g-test-out').textContent = 'Plain or gzipped XMLTV, or an absolute file path on the server.';
         addr();

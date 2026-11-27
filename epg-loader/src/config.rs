@@ -2,15 +2,12 @@
 //! the Settings page).
 
 use anyhow::{bail, Context, Result};
-use serde::Deserialize;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
-#[serde(rename_all = "kebab-case")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LogoSource {
     IptvOrg,
-    #[serde(alias = "none")]
     Off,
 }
 
@@ -24,41 +21,9 @@ impl LogoSource {
     }
 }
 
-/// Setting keys stored in the database. The Settings page uses the same names.
-#[allow(dead_code)]
-pub const KEYS: [&str; 26] = [
-    "source_url",
-    "tmdb_api_key",
-    "output_dir",
-    "days",
-    "language",
-    "rating_country",
-    "logo_source",
-    "refresh_hours",
-    "tmdb_concurrency",
-    "iptv_logos_url",
-    "iptv_channels_url",
-    "tmdb_time_budget",
-    "tmdb_background",
-    "logo_country",
-    "tv_logos_api_url",
-    "tv_logos_raw_url",
-    "imdb_ratings",
-    "imdb_min_votes",
-    "imdb_ratings_url",
-    "tvmaze",
-    "tvmaze_url",
-    "tvmaze_time_budget",
-    "sportsdb",
-    "sportsdb_key",
-    "sportsdb_url",
-    "sportsdb_time_budget",
-];
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(default, deny_unknown_fields)]
+#[derive(Debug, Clone)]
 pub struct Config {
-    /// XMLTV source: http(s) URL or local file path. Plain or gzipped.
+    /// XMLTV source of the guide being built: http(s) URL or local file path. Plain or gzipped.
     pub source_url: String,
     /// TMDB v3 API key or v4 read access token. Empty disables TMDB.
     pub tmdb_api_key: String,
@@ -103,7 +68,6 @@ pub struct Config {
     /// Hours between builds in watch mode.
     pub refresh_hours: f64,
     /// The data dir: epg.db, rules.toml, build.lock, cache/.
-    #[serde(skip)]
     pub base_dir: PathBuf,
 }
 
@@ -149,13 +113,8 @@ impl Config {
         let d = Config::default();
         let get = |k: &str| s.get(k).map(|v| v.trim()).filter(|v| !v.is_empty());
         let mut cfg = Config {
-            source_url: get("source_url").unwrap_or("").to_string(),
             tmdb_api_key: get("tmdb_api_key").unwrap_or("").to_string(),
-            output_dir: get("output_dir").map(PathBuf::from).unwrap_or_default(),
-            days: match get("days") {
-                Some(v) => Some(v.parse().with_context(|| format!("days must be a whole number, not {v:?}"))?),
-                None => None,
-            },
+            output_dir: get("output_dir").map(PathBuf::from).unwrap_or_else(|| data_dir.to_path_buf()),
             language: get("language").unwrap_or(&d.language).to_string(),
             rating_country: get("rating_country").unwrap_or(&d.rating_country).to_ascii_uppercase(),
             logo_source: LogoSource::parse(get("logo_source").unwrap_or(""))?,
@@ -224,9 +183,6 @@ impl Config {
     }
 
     fn validate(&mut self) -> Result<()> {
-        if self.output_dir.as_os_str().is_empty() {
-            bail!("output_dir is not set (it is filled in by the settings page)");
-        }
         // "/srv/epg" counts as absolute on every OS (the tests run on Windows too).
         if !(self.output_dir.is_absolute() || self.output_dir.to_string_lossy().starts_with('/')) {
             bail!("output_dir must be an absolute path, not {}", self.output_dir.display());
@@ -240,9 +196,6 @@ impl Config {
         if !(self.logo_country.len() == 2 && self.logo_country.chars().all(|c| c.is_ascii_lowercase())) {
             self.logo_country = "us".into();
         }
-        if self.days == Some(0) {
-            self.days = None;
-        }
         if !(self.refresh_hours.is_finite() && self.refresh_hours > 0.0) {
             self.refresh_hours = 6.0;
         }
@@ -250,14 +203,12 @@ impl Config {
     }
 }
 
-#[derive(Debug, Default, Deserialize)]
-#[serde(default)]
+#[derive(Debug, Default)]
 pub struct ChannelsFile {
     pub channels: HashMap<String, ChannelOverride>,
 }
 
-#[derive(Debug, Default, Clone, Deserialize)]
-#[serde(default)]
+#[derive(Debug, Default, Clone)]
 pub struct ChannelOverride {
     pub logo: Option<String>,
     pub group: Option<String>,
@@ -274,30 +225,22 @@ mod tests {
     #[test]
     fn settings_with_defaults() {
         let dir = Path::new("/data");
-        let c = Config::from_settings(
-            &map(&[("source_url", " http://x/guide.xml "), ("output_dir", "/srv/epg"), ("days", "0"), ("rating_country", "gb")]),
-            dir,
-        )
-        .unwrap();
-        assert_eq!(c.source_url, "http://x/guide.xml");
+        let c = Config::from_settings(&map(&[("rating_country", "gb")]), dir).unwrap();
         assert_eq!(c.language, "en-US");
         assert_eq!(c.rating_country, "GB");
         assert_eq!(c.logo_source, LogoSource::IptvOrg);
-        assert_eq!(c.days, None);
         assert_eq!(c.refresh_hours, 6.0);
+        assert_eq!(c.output_dir, dir, "guide files go to the data folder unless told otherwise");
         assert_eq!(c.rules_file, dir.join("rules.toml"));
     }
 
     #[test]
     fn rejects_bad_settings() {
         let dir = Path::new("/data");
-        // The source is set per guide now, so an empty one is fine here.
-        assert!(Config::from_settings(&map(&[("output_dir", "/o")]), dir).is_ok());
-        assert!(Config::from_settings(&map(&[("source_url", "x")]), dir).is_err(), "output_dir is required");
-        assert!(Config::from_settings(&map(&[("source_url", "x"), ("output_dir", "relative")]), dir).is_err());
-        assert!(Config::from_settings(&map(&[("source_url", "x"), ("output_dir", "/o"), ("days", "abc")]), dir).is_err());
-        let off = Config::from_settings(&map(&[("source_url", "x"), ("output_dir", "/o"), ("logo_source", "off")]), dir).unwrap();
+        assert!(Config::from_settings(&map(&[]), dir).is_ok());
+        assert!(Config::from_settings(&map(&[("output_dir", "relative")]), dir).is_err());
+        assert!(Config::from_settings(&map(&[("refresh_hours", "abc")]), dir).is_err());
+        let off = Config::from_settings(&map(&[("logo_source", "off")]), dir).unwrap();
         assert_eq!(off.logo_source, LogoSource::Off);
     }
-
 }

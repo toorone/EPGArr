@@ -639,13 +639,12 @@ mod tests {
     #[test]
     fn settings_round_trip_into_config() {
         let conn = open_memory();
-        set_setting(&conn, "source_url", "http://x/guide.xml").unwrap();
-        set_setting(&conn, "output_dir", "/srv/epg").unwrap();
-        set_setting(&conn, "days", "3").unwrap();
-        set_setting(&conn, "days", "5").unwrap();
+        set_setting(&conn, "language", "fr-FR").unwrap();
+        set_setting(&conn, "refresh_hours", "3").unwrap();
+        set_setting(&conn, "refresh_hours", "4").unwrap();
         let cfg = load_config(&conn, Path::new("/data"), None).unwrap();
-        assert_eq!(cfg.days, Some(5));
-        assert_eq!(cfg.source_url, "http://x/guide.xml");
+        assert_eq!(cfg.refresh_hours, 4.0);
+        assert_eq!(cfg.language, "fr-FR");
         let cfg = load_config(&conn, Path::new("/data"), Some(Path::new("/elsewhere"))).unwrap();
         assert_eq!(cfg.output_dir, Path::new("/elsewhere"));
     }

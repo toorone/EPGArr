@@ -600,7 +600,6 @@ fn save_settings(app: &Shared, ctx: &Ctx, f: &Posted) -> Response {
         errors.push("Logo country must be a two-letter code such as us or uk.");
     }
     kv.push(("logo_country", lc));
-    kv.push(("output_dir", app.output_dir.display().to_string()));
 
     if !errors.is_empty() {
         for e in errors {
