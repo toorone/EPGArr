@@ -430,6 +430,7 @@ async fn main() -> ExitCode {
                 output_dir: out,
                 assets: cli.assets.clone(),
                 sessions: std::sync::Mutex::new(HashMap::new()),
+                jobs: web::jobs::Jobs::default(),
             });
             match web::serve(app, &cli.listen).await {
                 Ok(()) => ExitCode::SUCCESS,

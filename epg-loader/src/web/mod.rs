@@ -6,7 +6,10 @@
 //! guide_api.php, ...) so bookmarks and the page scripts keep working.
 
 pub mod auth;
+pub mod common;
+pub mod guides;
 pub mod html;
+pub mod jobs;
 pub mod tv;
 
 use axum::body::Body;
@@ -42,6 +45,7 @@ pub struct App {
     /// Static files (app.css, guide.js, favicon.svg).
     pub assets: PathBuf,
     pub sessions: Mutex<HashMap<String, Session>>,
+    pub jobs: jobs::Jobs,
 }
 
 pub type Shared = Arc<App>;
@@ -241,6 +245,7 @@ pub fn router(app: Shared) -> Router {
         .route("/index.php", get(tv::dashboard_placeholder))
         .route("/login", post(auth::login_post))
         .route("/logout", post(auth::logout_post))
+        .route("/guides.php", get(guides::page_get).post(guides::page_post))
         .route("/guide.php", get(tv::guide_page))
         .route("/guide_api.php", get(tv::guide_api))
         .route("/assets/{*rel}", get(assets))

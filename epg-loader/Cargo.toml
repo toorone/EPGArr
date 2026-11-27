@@ -25,6 +25,8 @@ axum = { version = "0.8", features = ["multipart"] }
 tokio-util = { version = "0.7", features = ["io"] }
 bcrypt = "0.17"
 base64 = "0.22"
+# Local times on the pages (uses TZ and the system time zone database).
+jiff = "0.2"
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp", "gif"] }
 
 [profile.release]
