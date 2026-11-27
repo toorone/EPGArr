@@ -33,15 +33,32 @@ const SESSION_COOKIE: &str = "epgarr_session";
 /// Sessions end after this long without a request.
 const SESSION_IDLE_SECS: i64 = 14 * 86_400;
 
+#[derive(serde::Serialize, serde::Deserialize)]
 pub struct Session {
     pub user: Option<String>,
     /// Fingerprint of the user's password hash: a changed password or removed user ends the session.
     pub fp: String,
     pub csrf: String,
+    #[serde(skip)]
     pub flashes: Vec<(String, String)>,
     /// Form values to show again after a failed save.
+    #[serde(skip)]
     pub old: HashMap<String, String>,
     pub seen: i64,
+}
+
+const SESSIONS_FILE: &str = "sessions.json";
+
+/// Logged-in sessions saved by an earlier run, so a restart or update does not log everyone out.
+pub fn load_sessions(data_dir: &Path) -> HashMap<String, Session> {
+    let now = timeutil::now_unix();
+    std::fs::read(data_dir.join(SESSIONS_FILE))
+        .ok()
+        .and_then(|b| serde_json::from_slice::<HashMap<String, Session>>(&b).ok())
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|(_, s)| s.user.is_some() && now - s.seen < SESSION_IDLE_SECS)
+        .collect()
 }
 
 pub struct App {
@@ -112,6 +129,8 @@ impl App {
             s.csrf = random_token();
             sessions.insert(ctx.sid.clone(), s);
         }
+        drop(sessions);
+        self.save_sessions();
     }
 
     pub fn set_old(&self, ctx: &Ctx, old: HashMap<String, String>) {
@@ -126,6 +145,24 @@ impl App {
 
     pub fn logout(&self, ctx: &Ctx) {
         self.sessions.lock().unwrap().remove(&ctx.sid);
+        self.save_sessions();
+    }
+
+    /// Save the logged-in sessions (not the anonymous ones) to the data folder.
+    pub fn save_sessions(&self) {
+        let json = {
+            let sessions = self.sessions.lock().unwrap();
+            let logged_in: HashMap<&String, &Session> = sessions.iter().filter(|(_, s)| s.user.is_some()).collect();
+            serde_json::to_vec(&logged_in).unwrap_or_default()
+        };
+        let path = self.data_dir.join(SESSIONS_FILE);
+        if crate::output::write_atomic(&path, &json).is_ok() {
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600));
+            }
+        }
     }
 }
 
@@ -333,6 +370,7 @@ pub async fn serve(app: Shared, addr: &str) -> anyhow::Result<()> {
     tokio::spawn(async move {
         loop {
             settings::backup_daily(&a);
+            a.save_sessions();
             tokio::time::sleep(std::time::Duration::from_secs(3600)).await;
         }
     });

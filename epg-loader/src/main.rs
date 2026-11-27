@@ -431,7 +431,7 @@ async fn main() -> ExitCode {
                 data_dir: data_dir.clone(),
                 output_dir: out,
                 assets: cli.assets.clone(),
-                sessions: std::sync::Mutex::new(HashMap::new()),
+                sessions: std::sync::Mutex::new(web::load_sessions(&data_dir)),
                 jobs: web::jobs::Jobs::default(),
             });
             match web::serve(app, &cli.listen).await {

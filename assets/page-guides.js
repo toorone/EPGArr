@@ -149,10 +149,13 @@
             setTimeout(poll, 1500);
           }).catch(function () { done('bad-text', 'Could not get the test result.'); });
         };
-        fetch('guides', { method: 'POST', body: fd, credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (j) {
+        fetch('guides', { method: 'POST', body: fd, credentials: 'same-origin' }).then(function (r) {
+          if (!r.ok) { throw new Error('the server answered HTTP ' + r.status); }
+          return r.json().catch(function () { throw new Error('unexpected answer from the server; reload the page and try again'); });
+        }).then(function (j) {
           if (j.error) { done('bad-text', j.error); return; }
           setTimeout(poll, 1500);
-        }).catch(function () { done('bad-text', 'Could not start the test.'); });
+        }).catch(function (e) { done('bad-text', 'Could not start the test: ' + (e && e.message ? e.message : 'no connection to EPGArr') + '.'); });
       });
       if (window.EPG_OPEN_GUIDE) { open(window.EPG_OPEN_GUIDE); }
       // XML | GZ switch next to each guide address; the choice is remembered.

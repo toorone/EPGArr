@@ -236,13 +236,18 @@ fn guide_input(f: &Posted) -> Result<GuideInput, Vec<String>> {
 /// Accepts normal forms and the page script's FormData (multipart) posts.
 pub async fn page_post(State(app): State<Shared>, headers: HeaderMap, req: axum::extract::Request) -> Response {
     let ctx = app.ctx(&headers);
-    if ctx.user.is_none() {
-        return auth::login_page(&app, &ctx, "guides");
-    }
     let (f, _) = super::read_post(req, 0).await;
     let action = f.get("action");
+    // These come from the page script, which needs a JSON answer, never a page.
+    let script = action == "reorder" || action == "test_source";
+    if ctx.user.is_none() {
+        if script {
+            return json(&ctx, StatusCode::OK, json!({ "error": "You were logged out (EPGArr was restarted or updated). Reload the page and log in again." }));
+        }
+        return auth::login_page(&app, &ctx, "guides");
+    }
     if f.get("csrf") != ctx.csrf {
-        if action == "reorder" || action == "test_source" {
+        if script {
             return json(&ctx, StatusCode::OK, json!({ "error": "The page expired. Reload it and try again." }));
         }
         app.flash(&ctx, "error", "The form expired. Please try again.");
