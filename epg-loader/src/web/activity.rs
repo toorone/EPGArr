@@ -1,13 +1,12 @@
 //! The Activity page (activity): background TMDB lookups and guide builds, live.
 
-use axum::extract::{Form, Query, State};
+use axum::extract::{Query, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::Response;
 use serde_json::{json, Value};
 use std::collections::HashMap;
 
 use super::common::{guide_status, num, settings, st_i64, when};
-use super::guides::Posted;
 use super::html::{csrf_field, esc, icon, json_script, page};
 use super::{auth, html_page, jobs, json, redirect, Shared};
 use crate::db;
@@ -133,12 +132,13 @@ pub async fn page_get(State(app): State<Shared>, headers: HeaderMap, Query(q): Q
     html_page(&ctx, page(&ctx, "activity", "Activity", "", &body))
 }
 
-pub async fn page_post(State(app): State<Shared>, headers: HeaderMap, Form(form): Form<Vec<(String, String)>>) -> Response {
+/// Accepts normal forms and the page script's FormData (multipart) posts.
+pub async fn page_post(State(app): State<Shared>, headers: HeaderMap, req: axum::extract::Request) -> Response {
     let ctx = app.ctx(&headers);
     if ctx.user.is_none() {
         return auth::login_page(&app, &ctx, "activity");
     }
-    let f = Posted(form);
+    let (f, _) = super::read_post(req, 0).await;
     if f.get("csrf") != ctx.csrf {
         app.flash(&ctx, "error", "The form expired. Please try again.");
         return redirect(&ctx, "activity");

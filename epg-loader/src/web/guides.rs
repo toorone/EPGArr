@@ -1,7 +1,7 @@
 //! The Guides page (guides): each guide's card, add/edit dialog, order,
 //! build, source test, turn off, delete.
 
-use axum::extract::{Form, Query, State};
+use axum::extract::{Query, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::Response;
 use rusqlite::params;
@@ -233,12 +233,13 @@ fn guide_input(f: &Posted) -> Result<GuideInput, Vec<String>> {
     }
 }
 
-pub async fn page_post(State(app): State<Shared>, headers: HeaderMap, Form(form): Form<Vec<(String, String)>>) -> Response {
+/// Accepts normal forms and the page script's FormData (multipart) posts.
+pub async fn page_post(State(app): State<Shared>, headers: HeaderMap, req: axum::extract::Request) -> Response {
     let ctx = app.ctx(&headers);
     if ctx.user.is_none() {
         return auth::login_page(&app, &ctx, "guides");
     }
-    let f = Posted(form);
+    let (f, _) = super::read_post(req, 0).await;
     let action = f.get("action");
     if f.get("csrf") != ctx.csrf {
         if action == "reorder" || action == "test_source" {

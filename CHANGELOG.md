@@ -41,6 +41,10 @@ update.
   `--guide`, `--listen` and `--assets` and the newer source files.
 
 ### Fixed
+- **Test source** in the add/edit guide dialog said "Could not start the test",
+  and dragging guides into a new order did nothing: the Guides page did not
+  accept the way its own script sends forms. The Guides and Activity pages now
+  accept both kinds of form.
 - TheSportsDB lookups all failed with HTTP 403: TheSportsDB switched off the old
   free key `3`. The free key is now `123`, and a saved `3` is treated as `123`.
 - When TheSportsDB refuses the key, the lookups stop with one clear message
