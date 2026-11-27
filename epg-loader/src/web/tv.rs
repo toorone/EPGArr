@@ -183,7 +183,11 @@ fn feed(conn: &Connection, gid: i64, q: &HashMap<String, String>) -> anyhow::Res
             )
             .optional()?;
         return Ok(match row {
-            Some(v) => (StatusCode::OK, v),
+            Some(mut v) => {
+                let title = v["title"].as_str().unwrap_or("").to_string();
+                v["tmdb"] = super::tmdbapi::current_match(conn, &title);
+                (StatusCode::OK, v)
+            }
             None => (StatusCode::NOT_FOUND, json!({ "error": "not found" })),
         });
     }

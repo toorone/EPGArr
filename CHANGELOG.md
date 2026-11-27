@@ -4,6 +4,24 @@ Every change to EPGArr is written down here, newest first. Each release lists
 what was added, changed, fixed and removed, and anything you must do when you
 update.
 
+## 0.5.0 — 2026-11-27: identify programmes on TMDB yourself
+
+### Added
+- **Identify on TMDB** in the TV Guide. Click a programme, movie, show or
+  event; the details panel shows what it is matched to on TMDB ("set by you"
+  or "matched automatically", with a link to TMDB) and an **Identify on TMDB**
+  button. Search TMDB (all, movies or series), see posters, years and a short
+  description, and pick the right one.
+  - The match is saved in the database and used for **every programme with
+    that title, in every guide and every build from now on**. It wins over the
+    automatic search, never expires, and works even for titles EPGArr would
+    normally skip (news, sports).
+  - The poster shows in the TV Guide straight away; your media server gets the
+    poster, age rating, description and IMDb rating with the next build.
+  - **Back to automatic** removes your match.
+  - Your matches are included in backups.
+  - Needs a TMDB key (Settings › Artwork & info).
+
 ## 0.4.3 — 2026-11-27
 
 ### Fixed

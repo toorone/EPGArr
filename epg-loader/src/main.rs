@@ -780,8 +780,12 @@ fn override_logo(o: &ChannelsFile, channel: &str) -> Option<String> {
 
 /// The TMDB lookup key for a programme, or None when TMDB has nothing to add.
 /// Shared by the build and by `enrich`, so both agree on what is pending.
-fn tmdb_key_for(p: &xmltv::ProgInfo, overrides: &ChannelsFile, rules: &Rules) -> Option<LookupKey> {
+fn tmdb_key_for(p: &xmltv::ProgInfo, overrides: &ChannelsFile, rules: &Rules, manual: &std::collections::HashSet<String>) -> Option<LookupKey> {
     let title = p.title.as_deref()?;
+    // A title you identified by hand is always used, even when it looks like news or sports.
+    if manual.contains(&groups::normalize_words(title)) {
+        return tmdb::make_key(title, p.date.as_deref(), p.is_tv);
+    }
     let og = override_group(overrides, &p.channel);
     // News and sports are rarely on TMDB and mostly produce false matches.
     let pre = groups::choose_group(
@@ -1002,6 +1006,7 @@ async fn run(conn: &Connection, cfg: &Config, target: &Target, opts: Opts, start
     // Earliest start per lookup key, so the soonest-airing titles go first.
     let mut first_start: HashMap<String, i64> = HashMap::new();
     let mut skipped_titles: HashSet<String> = HashSet::new();
+    let manual_titles = tmdb::manual_titles(conn);
     for p in &scan.programmes {
         let mut plan = ProgPlan::default();
         let start_at = timeutil::parse_xmltv_time(&p.start);
@@ -1013,7 +1018,7 @@ async fn run(conn: &Connection, cfg: &Config, target: &Target, opts: Opts, start
         }
         let mut key = None;
         if !plan.drop {
-            if let Some(k) = tmdb_key_for(p, &overrides, &rules) {
+            if let Some(k) = tmdb_key_for(p, &overrides, &rules, &manual_titles) {
                 key = Some(k.key.clone());
                 let s = start_at.unwrap_or(i64::MAX);
                 first_start.entry(k.key.clone()).and_modify(|e| *e = (*e).min(s)).or_insert(s);

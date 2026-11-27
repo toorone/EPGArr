@@ -352,11 +352,121 @@
       (p.categories || []).forEach(function (c) { tags.appendChild(make('span', 'g-tag', c)); });
       if (tags.childNodes.length) detail.appendChild(tags);
       detail.appendChild(make('p', 'g-d-desc', p.desc || 'No description.'));
+      detail.appendChild(tmdbBox(p));
     }).catch(function (e) {
       detail.textContent = '';
       detail.appendChild(make('p', 'bad-text', 'Could not load the details: ' + e.message));
     });
   }
+  // ---------- Identify on TMDB
+
+  function tmdbBox(p) {
+    var box = make('div', 'g-tmdb');
+    var m = p.tmdb;
+    var line = make('p', 'g-tmdb-now');
+    if (m) {
+      line.appendChild(document.createTextNode('TMDB: '));
+      var a = make('a', '', m.name + (m.media_type === 'movie' ? ' (movie)' : ' (series)'));
+      a.href = m.url; a.target = '_blank'; a.rel = 'noopener';
+      line.appendChild(a);
+      line.appendChild(make('span', 'muted', m.manual ? ' · set by you' : ' · matched automatically'));
+    } else {
+      line.appendChild(make('span', 'muted', 'Not matched on TMDB.'));
+    }
+    box.appendChild(line);
+    var b = make('button', 'secondary', m ? 'Change TMDB match' : 'Identify on TMDB');
+    b.type = 'button';
+    b.addEventListener('click', function () { identify(p); });
+    box.appendChild(b);
+    return box;
+  }
+
+  var idDlg = null;
+  function csrf() { var f = el('logo-form'); return f ? f.dataset.csrf : ''; }
+  function identify(p) {
+    if (!idDlg) {
+      idDlg = make('dialog', 'g-dialog tmdb-dialog');
+      idDlg.innerHTML = '<form class="guide-form" method="dialog"><div class="hero-head"><h2>Identify on TMDB</h2><button type="button" class="ghost" data-close aria-label="Close">&times;</button></div>'
+        + '<p class="hint" id="tm-for"></p>'
+        + '<div class="url-box"><input type="text" id="tm-q" placeholder="Title to search for" autocomplete="off">'
+        + '<span class="tm-kind" role="group" aria-label="Kind"><button type="button" data-k="multi" class="on">All</button><button type="button" data-k="movie">Movies</button><button type="button" data-k="tv">Series</button></span>'
+        + '<button type="submit" id="tm-go">Search</button></div>'
+        + '<p class="hint" id="tm-msg" role="status"></p><div class="tm-results" id="tm-results"></div>'
+        + '<div class="form-actions"><button type="button" class="ghost" id="tm-clear" hidden>Back to automatic</button><button type="button" class="ghost" data-close>Close</button></div></form>';
+      document.body.appendChild(idDlg);
+      idDlg.querySelectorAll('[data-close]').forEach(function (x) { x.addEventListener('click', function () { idDlg.close(); }); });
+      idDlg.querySelectorAll('.tm-kind button').forEach(function (k) {
+        k.addEventListener('click', function () {
+          idDlg.querySelectorAll('.tm-kind button').forEach(function (o) { o.classList.toggle('on', o === k); });
+          runSearch();
+        });
+      });
+      idDlg.querySelector('form').addEventListener('submit', function (e) { e.preventDefault(); runSearch(); });
+      idDlg.querySelector('#tm-clear').addEventListener('click', function () { post({ action: 'clear', title: idDlg.dataset.title }); });
+    }
+    idDlg.dataset.title = p.title || '';
+    idDlg.dataset.id = p.id;
+    idDlg.querySelector('#tm-for').textContent = 'Pick the right title for "' + (p.title || '') + '". It is used for every programme with this title, now and in future builds.';
+    idDlg.querySelector('#tm-q').value = p.title || '';
+    idDlg.querySelector('#tm-clear').hidden = !(p.tmdb && p.tmdb.manual);
+    idDlg.querySelector('#tm-results').textContent = '';
+    idDlg.querySelector('#tm-msg').textContent = '';
+    idDlg.showModal();
+    runSearch();
+  }
+  function msg(text, cls) { var m = idDlg.querySelector('#tm-msg'); m.className = 'hint ' + (cls || ''); m.textContent = text; }
+  function runSearch() {
+    var q = idDlg.querySelector('#tm-q').value.trim();
+    var k = idDlg.querySelector('.tm-kind .on').dataset.k;
+    var out = idDlg.querySelector('#tm-results');
+    if (!q) { msg('Type a title to search for.'); return; }
+    msg('Searching TMDB…');
+    fetch('api/tmdb?q=' + encodeURIComponent(q) + '&type=' + k, { credentials: 'same-origin', cache: 'no-store' })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        out.textContent = '';
+        if (j.error) { msg(j.error, 'bad-text'); return; }
+        if (!j.results.length) { msg('Nothing found. Try another spelling, or the original title.'); return; }
+        msg(j.results.length + ' result' + (j.results.length > 1 ? 's' : '') + '. Pick the right one.');
+        j.results.forEach(function (r) {
+          var b = make('button', 'tm-item');
+          b.type = 'button';
+          if (r.poster) { var i = make('img'); i.src = r.poster; i.alt = ''; i.referrerPolicy = 'no-referrer'; i.loading = 'lazy'; b.appendChild(i); }
+          else { b.appendChild(make('span', 'tm-noposter', '?')); }
+          var t = make('span', 'tm-text');
+          var h = make('strong', '', r.name);
+          t.appendChild(h);
+          t.appendChild(make('span', 'tm-meta', [r.media_type === 'movie' ? 'Movie' : 'Series', r.year].filter(Boolean).join(' · ')));
+          if (r.overview) t.appendChild(make('span', 'tm-ov', r.overview));
+          b.appendChild(t);
+          b.addEventListener('click', function () {
+            post({ action: 'set', title: idDlg.dataset.title, media_type: r.media_type, id: r.id });
+          });
+          out.appendChild(b);
+        });
+      })
+      .catch(function () { msg('Could not reach EPGArr. Try again.', 'bad-text'); });
+  }
+  function post(fields) {
+    var fd = new FormData();
+    fd.append('csrf', csrf());
+    Object.keys(fields).forEach(function (k) { fd.append(k, fields[k]); });
+    msg('Saving…');
+    fetch('api/tmdb', { method: 'POST', body: fd, credentials: 'same-origin' })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        if (j.error) { msg(j.error, 'bad-text'); return; }
+        idDlg.close();
+        var id = idDlg.dataset.id;
+        openDetail(id);
+        setTimeout(function () {
+          var n = detail.querySelector('.g-tmdb');
+          if (n) n.appendChild(make('p', 'ok-text g-tmdb-msg', j.message));
+        }, 400);
+      })
+      .catch(function () { msg('Could not save. Try again.', 'bad-text'); });
+  }
+
   function closeDetail() {
     panel.hidden = true;
     var a = body.querySelector('.g-p.sel');

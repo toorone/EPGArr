@@ -16,7 +16,7 @@ use super::{auth, html_page, jobs, read_post, redirect, with_cookie, App, Ctx, S
 use crate::timeutil;
 
 pub const BACKUP_KEEP: usize = 30;
-const BACKUP_TABLES: [&str; 3] = ["settings", "guides", "channel_overrides"];
+const BACKUP_TABLES: [&str; 4] = ["settings", "guides", "channel_overrides", "tmdb_manual"];
 
 fn key_hint(key: &str) -> String {
     if key.is_empty() {
@@ -33,7 +33,8 @@ fn checked(on: bool) -> &'static str {
 // ---------------------------------------------------------------- backups
 //
 // A backup is one gzipped JSON file in <data dir>/backups/: the settings, the
-// guides, channel overrides, users and the custom channel logos. The newest
+// guides, channel overrides, TMDB matches made by hand, users and the custom
+// channel logos. The newest
 // BACKUP_KEEP are kept. Restoring makes a backup of the current state first.
 
 pub struct Backup {
@@ -460,7 +461,7 @@ pub async fn page_get(State(app): State<Shared>, headers: HeaderMap, Query(q): Q
 <button form="user-add">Add user</button>
 </section>
 <section class="card set-panel" id="backups"><h2>Backups</h2>
-<p class="hint" style="margin-top:0">Settings, guides, channel overrides, users and custom logos. One is made every day automatically and before every restore; the newest {keep} are kept in the data folder.</p>
+<p class="hint" style="margin-top:0">Settings, guides, channel overrides, your TMDB matches, users and custom logos. One is made every day automatically and before every restore; the newest {keep} are kept in the data folder.</p>
 <div class="form-actions" style="margin-top:0"><button form="bk-create">Back up now</button>
 <label class="button secondary bk-upload">Restore from a file…<input form="bk-upload" type="file" name="file" accept=".gz,application/gzip" onchange="if (this.files.length) this.form.requestSubmit()"></label></div>
 {bk_table}

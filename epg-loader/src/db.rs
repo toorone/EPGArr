@@ -165,6 +165,23 @@ const MIGRATIONS: &[&str] = &[
         fetched_at INTEGER NOT NULL
     ) WITHOUT ROWID;
     "#,
+    // 2: titles you identified on TMDB yourself (TV Guide › a programme › Identify on TMDB).
+    // They win over the automatic search for every programme with that title.
+    r#"
+    CREATE TABLE tmdb_manual (
+        norm_title   TEXT PRIMARY KEY,
+        title        TEXT NOT NULL DEFAULT '',
+        media_type   TEXT NOT NULL,
+        tmdb_id      INTEGER NOT NULL,
+        name         TEXT NOT NULL DEFAULT '',
+        poster_path  TEXT,
+        rating       TEXT,
+        genres       TEXT NOT NULL DEFAULT '',
+        overview     TEXT,
+        imdb_id      TEXT,
+        set_at       INTEGER NOT NULL
+    ) WITHOUT ROWID;
+    "#,
 ];
 
 pub fn open(data_dir: &Path) -> Result<Connection> {

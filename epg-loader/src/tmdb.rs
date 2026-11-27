@@ -8,7 +8,7 @@ use anyhow::{anyhow, bail, Context, Result};
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -116,6 +116,8 @@ pub fn short_desc(s: &str, max: usize) -> String {
 /// language or rating country are ignored. New results are written back
 /// with `save`.
 pub struct TmdbCache {
+    /// Titles identified by hand (by normalised title); they win over everything else.
+    manual: HashMap<String, TmdbInfo>,
     language: String,
     country: String,
     entries: BTreeMap<String, TmdbInfo>,
@@ -160,14 +162,23 @@ impl TmdbCache {
             let (k, v) = row?;
             entries.insert(k, v);
         }
-        Ok(TmdbCache { language: language.to_string(), country: country.to_string(), entries, pending: Vec::new() })
+        let manual = load_manual(conn).unwrap_or_default();
+        Ok(TmdbCache { manual, language: language.to_string(), country: country.to_string(), entries, pending: Vec::new() })
+    }
+
+    /// The match you made by hand for this key's title, if any.
+    fn manual_for(&self, key: &str) -> Option<&TmdbInfo> {
+        key.split('|').next().and_then(|norm| self.manual.get(norm))
     }
 
     pub fn get(&self, key: &str) -> Option<&TmdbInfo> {
-        self.entries.get(key)
+        self.manual_for(key).or_else(|| self.entries.get(key))
     }
 
     pub fn get_fresh(&self, key: &str, now: u64) -> Option<&TmdbInfo> {
+        if let Some(m) = self.manual_for(key) {
+            return Some(m);
+        }
         let e = self.entries.get(key)?;
         // A match from before IMDb ids were fetched counts as stale, so it is looked up again.
         (now < expires_at(e) && (!e.found || e.imdb_checked)).then_some(e)
@@ -228,6 +239,96 @@ impl TmdbCache {
         self.pending.clear();
         Ok(())
     }
+}
+
+/// The results of a TMDB search, trimmed for the Identify dialog (movies and series only).
+fn search_results(v: &Value, kind: &str) -> Vec<Value> {
+    let empty = Vec::new();
+    let results = v.get("results").and_then(Value::as_array).unwrap_or(&empty);
+    results
+        .iter()
+        .filter_map(|r| {
+            let mt = r.get("media_type").and_then(Value::as_str).unwrap_or(kind);
+            if mt != "movie" && mt != "tv" {
+                return None;
+            }
+            let name = non_empty_str(r, if mt == "movie" { "title" } else { "name" })?;
+            let date = non_empty_str(r, if mt == "movie" { "release_date" } else { "first_air_date" }).unwrap_or_default();
+            Some(serde_json::json!({
+                "id": r.get("id").and_then(Value::as_u64).unwrap_or(0),
+                "media_type": mt,
+                "name": name,
+                "year": date.get(0..4).unwrap_or(""),
+                "poster": non_empty_str(r, "poster_path").map(|p| format!("https://image.tmdb.org/t/p/w92{p}")),
+                "overview": non_empty_str(r, "overview").map(|o| short_desc(&o, 220)),
+            }))
+        })
+        .take(20)
+        .collect()
+}
+
+// ---------------------------------------------------------------- matches made by hand
+
+fn load_manual(conn: &Connection) -> Result<HashMap<String, TmdbInfo>> {
+    let mut st = conn.prepare(
+        "SELECT norm_title, media_type, tmdb_id, name, poster_path, rating, genres, overview, imdb_id, set_at FROM tmdb_manual",
+    )?;
+    let rows = st.query_map([], |r| {
+        Ok((
+            r.get::<_, String>(0)?,
+            TmdbInfo {
+                found: true,
+                media_type: r.get(1)?,
+                id: r.get::<_, i64>(2)?.max(0) as u64,
+                name: r.get(3)?,
+                poster_path: r.get(4)?,
+                certification: r.get(5)?,
+                genre_ids: split_genres(&r.get::<_, String>(6)?),
+                overview: r.get(7)?,
+                imdb_id: r.get(8)?,
+                fetched_at: r.get::<_, i64>(9)?.max(0) as u64,
+                imdb_checked: true,
+            },
+        ))
+    })?;
+    Ok(rows.filter_map(|r| r.ok()).collect())
+}
+
+/// The normalised titles identified by hand (they are looked up even when they look like news or sports).
+pub fn manual_titles(conn: &Connection) -> HashSet<String> {
+    load_manual(conn).map(|m| m.into_keys().collect()).unwrap_or_default()
+}
+
+/// The hand-made match for a programme title, if any.
+pub fn manual_for_title(conn: &Connection, title: &str) -> Option<TmdbInfo> {
+    load_manual(conn).ok()?.remove(&normalize_words(title))
+}
+
+/// Remember `info` as the TMDB match for every programme called `title`.
+pub fn save_manual(conn: &Connection, title: &str, info: &TmdbInfo) -> Result<()> {
+    conn.execute(
+        "INSERT OR REPLACE INTO tmdb_manual (norm_title, title, media_type, tmdb_id, name, poster_path, rating, genres, overview, imdb_id, set_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+        params![
+            normalize_words(title),
+            title.trim(),
+            info.media_type,
+            info.id as i64,
+            info.name,
+            info.poster_path,
+            info.certification,
+            join_genres(&info.genre_ids),
+            info.overview,
+            info.imdb_id,
+            crate::timeutil::now_unix()
+        ],
+    )?;
+    Ok(())
+}
+
+/// Forget the hand-made match: the automatic search decides again from the next build.
+pub fn clear_manual(conn: &Connection, title: &str) -> Result<bool> {
+    Ok(conn.execute("DELETE FROM tmdb_manual WHERE norm_title = ?1", params![normalize_words(title)])? > 0)
 }
 
 /// Found titles are kept 90 days, "not on TMDB" results 14 days.
@@ -438,6 +539,40 @@ impl Tmdb {
         };
         let mut info = info_from_result(r, now);
         info.imdb_checked = true;
+        self.fill_details(&mut info).await?;
+        Ok(info)
+    }
+
+    /// One title by its TMDB id ("movie" or "tv"), with its details: for a match made by hand.
+    pub async fn by_id(&self, media_type: &str, id: u64) -> Result<TmdbInfo> {
+        let now = crate::timeutil::now_unix().max(0) as u64;
+        let movie = media_type == "movie";
+        let path = if movie { format!("/movie/{id}") } else { format!("/tv/{id}") };
+        let d = self.get_json(&path, &[]).await?;
+        let mut info = TmdbInfo {
+            found: true,
+            media_type: if movie { "movie".into() } else { "tv".into() },
+            id,
+            name: non_empty_str(&d, if movie { "title" } else { "name" }).unwrap_or_default(),
+            fetched_at: now,
+            imdb_checked: true,
+            ..Default::default()
+        };
+        self.fill_details(&mut info).await?;
+        Ok(info)
+    }
+
+    /// Search TMDB for the "Identify on TMDB" dialog: `kind` is multi, movie or tv.
+    pub async fn search(&self, query: &str, kind: &str) -> Result<Vec<Value>> {
+        let kind = if matches!(kind, "movie" | "tv") { kind } else { "multi" };
+        let v = self
+            .get_json(&format!("/search/{kind}"), &[("query", query), ("include_adult", "false")])
+            .await?;
+        Ok(search_results(&v, kind))
+    }
+
+    /// Age rating, IMDb id and any missing poster, overview or genres, from the details call.
+    async fn fill_details(&self, info: &mut TmdbInfo) -> Result<()> {
         if info.id != 0 {
             let movie = info.media_type == "movie";
             let (path, append) = if movie {
@@ -468,7 +603,7 @@ impl Tmdb {
                 }
             }
         }
-        Ok(info)
+        Ok(())
     }
 
     /// Look up titles in the given order (soonest first) with `concurrency`
@@ -659,6 +794,42 @@ pub fn tv_rating(details: &Value, country: &str) -> Option<String> {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn search_results_keep_movies_and_series() {
+        let v = json!({"results": [
+            {"id": 1, "media_type": "movie", "title": "The Film", "release_date": "1999-03-31", "poster_path": "/a.jpg", "overview": "x"},
+            {"id": 2, "media_type": "person", "name": "Someone"},
+            {"id": 3, "media_type": "tv", "name": "The Show", "first_air_date": "2008-01-20"}
+        ]});
+        let r = search_results(&v, "multi");
+        assert_eq!(r.len(), 2);
+        assert_eq!((r[0]["name"].as_str(), r[0]["year"].as_str()), (Some("The Film"), Some("1999")));
+        assert_eq!(r[0]["poster"].as_str(), Some("https://image.tmdb.org/t/p/w92/a.jpg"));
+        assert_eq!(r[1]["media_type"].as_str(), Some("tv"));
+        // A movie-only search has no media_type in its results.
+        let m = search_results(&json!({"results": [{"id": 5, "title": "Only Film"}]}), "movie");
+        assert_eq!(m[0]["media_type"].as_str(), Some("movie"));
+    }
+
+    #[test]
+    fn a_match_made_by_hand_wins() {
+        let conn = crate::db::open_memory();
+        let auto = make_key("Ghost Story", Some("2017"), false).unwrap();
+        let mut c = TmdbCache::load(&conn, "en-US", "US").unwrap();
+        c.insert(auto.clone(), TmdbInfo { found: true, media_type: "movie".into(), id: 11, name: "Wrong One".into(), fetched_at: 1, imdb_checked: true, ..Default::default() });
+        c.save(&conn).unwrap();
+        let mine = TmdbInfo { found: true, media_type: "movie".into(), id: 22, name: "A Ghost Story".into(), imdb_checked: true, ..Default::default() };
+        save_manual(&conn, "Ghost Story!", &mine).unwrap();
+        let c = TmdbCache::load(&conn, "en-US", "US").unwrap();
+        assert_eq!(c.get(&auto.key).map(|i| i.id), Some(22), "the hand-made match is used");
+        let other_year = make_key("ghost story", Some("2020"), false).unwrap();
+        assert_eq!(c.get_fresh(&other_year.key, u64::MAX / 2).map(|i| i.id), Some(22), "for every programme with that title, and it never expires");
+        assert!(manual_titles(&conn).contains("ghost story"));
+        assert!(clear_manual(&conn, "GHOST STORY").unwrap());
+        let c = TmdbCache::load(&conn, "en-US", "US").unwrap();
+        assert_eq!(c.get(&auto.key).map(|i| i.id), Some(11), "back to the automatic match");
+    }
 
     #[test]
     fn detects_key_type() {

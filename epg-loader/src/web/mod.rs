@@ -14,6 +14,7 @@ pub mod html;
 pub mod jobs;
 pub mod logo;
 pub mod settings;
+pub mod tmdbapi;
 pub mod tv;
 
 use axum::body::Body;
@@ -448,6 +449,7 @@ pub fn router(app: Shared) -> Router {
         .route("/tv", get(tv::guide_page))
         .route("/api/guide", get(tv::guide_api))
         .route("/api/busy", get(busy))
+        .route("/api/tmdb", get(tmdbapi::get).post(tmdbapi::post))
         .route("/assets/{*rel}", get(assets))
         .route("/guides/{*rel}", get(guide_files))
         .route("/logos/{*rel}", get(logo_files))

@@ -798,3 +798,21 @@ main.page-guide { padding-bottom: 1rem; }
 .g-pick-item svg { width: 15px; height: 15px; flex: none; color: var(--accent); }
 .g-pick-item .pill { font-size: 0.7rem; }
 .g-pick-add { margin-top: 0.3rem; padding-top: 0.55rem; border-top: 1px solid var(--line); border-radius: 0 0 8px 8px; color: var(--accent); }
+
+/* TV Guide: Identify on TMDB */
+.g-tmdb { margin-top: 1rem; padding-top: 0.85rem; border-top: 1px solid var(--line); }
+.g-tmdb-now { margin: 0 0 0.6rem; font-size: 0.88rem; }
+.g-tmdb button { margin: 0; }
+.g-tmdb-msg { margin: 0.6rem 0 0; font-size: 0.85rem; }
+.tmdb-dialog .url-box { gap: 0.5rem; }
+.tm-kind { display: inline-flex; flex: none; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; }
+.tm-kind button { margin: 0; padding: 0 0.7rem; border: 0; border-radius: 0; background: transparent; box-shadow: none; color: var(--muted); font-size: 0.85rem; }
+.tm-kind button.on { background: var(--accent-soft); color: var(--text); }
+.tm-results { display: grid; gap: 0.4rem; max-height: 52vh; overflow-y: auto; margin-top: 0.4rem; }
+.tm-item { display: flex; gap: 0.8rem; align-items: flex-start; width: 100%; margin: 0; padding: 0.5rem; border: 1px solid var(--line); border-radius: 10px; background: transparent; box-shadow: none; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.tm-item:hover, .tm-item:focus-visible { border-color: var(--accent); background: var(--accent-soft); filter: none; }
+.tm-item img, .tm-noposter { width: 46px; height: 69px; flex: none; border-radius: 6px; object-fit: cover; background: #0f1115; }
+.tm-noposter { display: grid; place-items: center; color: var(--muted); }
+.tm-text { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; }
+.tm-meta { font-size: 0.8rem; color: var(--muted); }
+.tm-ov { font-size: 0.8rem; color: var(--muted); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
