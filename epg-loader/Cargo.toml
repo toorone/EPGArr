@@ -18,8 +18,14 @@ reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"
 rusqlite = { version = "0.32", features = ["bundled"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-tokio = { version = "1", features = ["macros", "rt-multi-thread", "time", "sync", "fs", "signal"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "time", "sync", "fs", "signal", "net", "process"] }
 toml = "0.8"
+# The web pages (epg-loader serve).
+axum = { version = "0.8", features = ["multipart"] }
+tokio-util = { version = "0.7", features = ["io"] }
+bcrypt = "0.17"
+base64 = "0.22"
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp", "gif"] }
 
 [profile.release]
 strip = true
