@@ -1,4 +1,4 @@
-//! The Settings page (settings.php): artwork and info sources, channel logos,
+//! The Settings page (settings): artwork and info sources, channel logos,
 //! schedule, users, backups and the system checks.
 
 use axum::extract::{Query, Request, State};
@@ -327,7 +327,7 @@ fn system_checks(app: &App) -> Vec<(String, &'static str, String)> {
 pub async fn page_get(State(app): State<Shared>, headers: HeaderMap, Query(q): Query<HashMap<String, String>>) -> Response {
     let ctx = app.ctx(&headers);
     if ctx.user.is_none() {
-        return auth::login_page(&app, &ctx, "settings.php");
+        return auth::login_page(&app, &ctx, "settings");
     }
     if let Some(name) = q.get("backup") {
         return download(&ctx, &app, name);
@@ -385,7 +385,7 @@ pub async fn page_get(State(app): State<Shared>, headers: HeaderMap, Query(q): Q
             .map(|b| {
                 let n = esc(&b.name);
                 format!(
-                    r#"<tr><td>{when}</td><td>{made}</td><td class="muted">{sum}</td><td class="num">{kb} KB</td><td class="user-actions"><a class="button ghost" href="settings.php?backup={url}">Download</a><button class="ghost" form="bk-restore" name="name" value="{n}">Restore</button><button class="ghost danger-text" form="bk-delete" name="name" value="{n}">Delete</button></td></tr>"#,
+                    r#"<tr><td>{when}</td><td>{made}</td><td class="muted">{sum}</td><td class="num">{kb} KB</td><td class="user-actions"><a class="button ghost" href="settings?backup={url}">Download</a><button class="ghost" form="bk-restore" name="name" value="{n}">Restore</button><button class="ghost danger-text" form="bk-delete" name="name" value="{n}">Delete</button></td></tr>"#,
                     when = esc(&when_long(b.time)),
                     made = esc(if b.reason == "before-restore" { "before a restore" } else { &b.reason }),
                     sum = esc(&backup_summary(&app, &b.name)),
@@ -418,7 +418,7 @@ pub async fn page_get(State(app): State<Shared>, headers: HeaderMap, Query(q): Q
 <form method="post" autocomplete="off" id="settings-form" class="set-layout">{csrf}<input type="hidden" name="action" value="save_settings">
 <nav class="set-tabs" aria-label="Settings sections"><a href="#artwork" data-tab="artwork">{i_grid}Artwork &amp; info</a><a href="#logos" data-tab="logos">{i_tv}Channel logos</a><a href="#schedule" data-tab="schedule">{i_hist}Schedule</a><a href="#users" data-tab="users">{i_user}Users</a><a href="#backups" data-tab="backups">{i_hist}Backups</a><a href="#advanced" data-tab="advanced">{i_set}Advanced</a></nav>
 <div class="set-panels">
-<p class="hint set-pointer">XMLTV sources, days to keep and guide addresses are on the <a href="guides.php">Guides</a> page.</p>
+<p class="hint set-pointer">XMLTV sources, days to keep and guide addresses are on the <a href="guides">Guides</a> page.</p>
 <section class="card set-panel" id="artwork"><h2>Artwork &amp; info</h2>
 <label for="tmdb_api_key">TMDB API key or read access token</label>
 <input type="password" id="tmdb_api_key" name="tmdb_api_key" value="" autocomplete="new-password" placeholder="{key_ph}">
@@ -426,7 +426,7 @@ pub async fn page_get(State(app): State<Shared>, headers: HeaderMap, Query(q): Q
 <div class="row"><div><label for="language">Language</label><input type="text" id="language" name="language" value="{language}" pattern="[a-z]{{2}}(-[A-Z]{{2}})?" required><p class="hint">For titles and descriptions, e.g. en-US.</p></div>
 <div><label for="rating_country">Rating country</label><input type="text" id="rating_country" name="rating_country" value="{rating_country}" maxlength="2" required><p class="hint">Whose age ratings to use, e.g. US.</p></div></div>
 <label class="check"><input type="checkbox" name="tmdb_background" value="1"{c_bg}> Keep looking up titles in the background until all are done</label>
-<p class="hint">Watch progress, Start or Pause on the <a href="activity.php">Activity</a> page.</p>
+<p class="hint">Watch progress, Start or Pause on the <a href="activity">Activity</a> page.</p>
 <label class="check"><input type="checkbox" name="imdb_ratings" value="1"{c_imdb}> Add IMDb star ratings (e.g. 7.8/10) to matched programmes</label>
 <p class="hint">IMDb data is for personal, non-commercial use.</p>
 <label class="check"><input type="checkbox" name="tvmaze" value="1"{c_tvmaze}> Use TVmaze for series TMDB has no match or poster for</label>
@@ -446,7 +446,7 @@ pub async fn page_get(State(app): State<Shared>, headers: HeaderMap, Query(q): Q
 <section class="card set-panel" id="schedule"><h2>Schedule</h2>
 <label for="refresh_hours">Rebuild every (hours)</label>
 <input type="number" id="refresh_hours" name="refresh_hours" min="0.5" max="168" step="0.5" value="{refresh_hours}" required class="short">
-<p class="hint">Default for every guide; a guide can set its own on the <a href="guides.php">Guides</a> page.</p>
+<p class="hint">Default for every guide; a guide can set its own on the <a href="guides">Guides</a> page.</p>
 </section>
 <section class="card set-panel" id="users"><h2>Users</h2>
 <table class="compact users-table"><thead><tr><th>Username</th><th>Role</th><th>Last login</th><th>Status</th><th></th></tr></thead><tbody>{user_rows}</tbody></table>
@@ -581,7 +581,7 @@ fn save_settings(app: &Shared, ctx: &Ctx, f: &Posted) -> Response {
             app.flash(ctx, "error", e);
         }
         app.set_old(ctx, kv.into_iter().filter(|(k, _)| *k != "tmdb_api_key").map(|(k, v)| (k.to_string(), v)).collect());
-        return redirect(ctx, "settings.php");
+        return redirect(ctx, "settings");
     }
     kv.push(("settings_saved_at", timeutil::now_unix().to_string()));
     let r = (|| -> anyhow::Result<()> {
@@ -601,7 +601,7 @@ fn save_settings(app: &Shared, ctx: &Ctx, f: &Posted) -> Response {
         }
         Err(e) => app.flash(ctx, "error", format!("Error: {e}")),
     }
-    redirect(ctx, "settings.php")
+    redirect(ctx, "settings")
 }
 
 fn users_action(app: &Shared, ctx: &Ctx, action: &str, f: &Posted) -> Response {
@@ -674,18 +674,18 @@ fn users_action(app: &Shared, ctx: &Ctx, action: &str, f: &Posted) -> Response {
         }
         app.flash(ctx, "ok", msg);
     }
-    redirect(ctx, "settings.php#users")
+    redirect(ctx, "settings#users")
 }
 
 pub async fn page_post(State(app): State<Shared>, headers: HeaderMap, req: Request) -> Response {
     let ctx = app.ctx(&headers);
     if ctx.user.is_none() {
-        return auth::login_page(&app, &ctx, "settings.php");
+        return auth::login_page(&app, &ctx, "settings");
     }
     let (f, files) = read_post(req, 60 << 20).await;
     if f.get("csrf") != ctx.csrf {
         app.flash(&ctx, "error", "The form expired. Please try again.");
-        return redirect(&ctx, "settings.php");
+        return redirect(&ctx, "settings");
     }
     let action = f.get("action");
     match action.as_str() {
@@ -696,14 +696,14 @@ pub async fn page_post(State(app): State<Shared>, headers: HeaderMap, req: Reque
                 Ok(n) => app.flash(&ctx, "ok", format!("Backup made: {n}")),
                 Err(e) => app.flash(&ctx, "error", e),
             }
-            redirect(&ctx, "settings.php#backups")
+            redirect(&ctx, "settings#backups")
         }
         "backup_delete" => {
             match backup_path(&app, &f.get("name")).map(std::fs::remove_file) {
                 Some(Ok(())) => app.flash(&ctx, "ok", "Backup deleted."),
                 _ => app.flash(&ctx, "error", "That backup could not be deleted."),
             }
-            redirect(&ctx, "settings.php#backups")
+            redirect(&ctx, "settings#backups")
         }
         "backup_restore" | "backup_upload" => {
             let gz = if action == "backup_restore" {
@@ -717,11 +717,11 @@ pub async fn page_post(State(app): State<Shared>, headers: HeaderMap, req: Reque
             } else {
                 app.flash(&ctx, "error", err);
             }
-            redirect(&ctx, "settings.php#backups")
+            redirect(&ctx, "settings#backups")
         }
         _ => {
             app.flash(&ctx, "error", "Unknown action.");
-            redirect(&ctx, "settings.php")
+            redirect(&ctx, "settings")
         }
     }
 }

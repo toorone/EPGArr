@@ -163,12 +163,15 @@ fn client_ip(headers: &HeaderMap) -> String {
 
 // ---------------------------------------------------------------- pages
 
-/// A local page to return to after login ("guide.php", "index.php#history"), or "".
+/// The pages a login may return to.
+const PAGES: [&str; 5] = ["./", "guides", "tv", "activity", "settings"];
+
+/// A local page to return to after login ("tv", "./#history"), or "".
 pub fn safe_next(next: &str) -> String {
     let ok = !next.is_empty()
         && next.len() < 200
-        && next.chars().all(|c| c.is_ascii_alphanumeric() || "._-?=&#".contains(c))
-        && next.split(['?', '#']).next().is_some_and(|p| p.ends_with(".php") && !p.contains('/'));
+        && next.chars().all(|c| c.is_ascii_alphanumeric() || "._-?=&#/".contains(c))
+        && next.split(['?', '#']).next().is_some_and(|p| PAGES.contains(&p));
     if ok { next.to_string() } else { String::new() }
 }
 
@@ -224,7 +227,7 @@ pub struct LoginForm {
 pub async fn login_post(State(app): State<Shared>, headers: HeaderMap, Form(f): Form<LoginForm>) -> Response {
     let ctx = app.ctx(&headers);
     let next = safe_next(&f.next);
-    let back = if next.is_empty() { "index.php".to_string() } else { next.clone() };
+    let back = if next.is_empty() { "./".to_string() } else { next.clone() };
     if f.csrf != ctx.csrf {
         app.flash(&ctx, "error", "The form expired. Please try again.");
         return redirect(&ctx, &back);
@@ -284,7 +287,7 @@ pub async fn logout_post(State(app): State<Shared>, headers: HeaderMap, Form(f):
     if f.csrf == ctx.csrf {
         app.logout(&ctx);
     }
-    redirect(&ctx, "index.php")
+    redirect(&ctx, "./")
 }
 
 #[cfg(test)]
@@ -293,11 +296,12 @@ mod tests {
 
     #[test]
     fn next_must_be_a_local_page() {
-        assert_eq!(safe_next("guide.php?guide=a"), "guide.php?guide=a");
-        assert_eq!(safe_next("index.php#history"), "index.php#history");
+        assert_eq!(safe_next("tv?guide=a"), "tv?guide=a");
+        assert_eq!(safe_next("./#history"), "./#history");
         assert_eq!(safe_next("https://evil/x.php"), "");
         assert_eq!(safe_next("../x.php"), "");
         assert_eq!(safe_next("/etc/passwd"), "");
+        assert_eq!(safe_next("../guides"), "");
     }
 
     #[test]

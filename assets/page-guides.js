@@ -34,7 +34,7 @@
         fd.append('action', 'reorder');
         fd.append('csrf', document.querySelector('#g-form input[name=csrf]').value);
         cards().forEach(function (c) { fd.append('ids[]', c.dataset.id); });
-        fetch('guides.php', { method: 'POST', body: fd, credentials: 'same-origin' })
+        fetch('guides', { method: 'POST', body: fd, credentials: 'same-origin' })
           .then(function (r) { return r.json(); })
           .then(function (j) {
             if (j.error) { throw new Error(j.error); }
@@ -143,13 +143,13 @@
         var tries = 0;
         var done = function (cls, text) { out.className = 'hint ' + cls; out.textContent = text; btn.disabled = false; };
         var poll = function () {
-          fetch('guides.php?check=1', { credentials: 'same-origin', cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (j) {
+          fetch('guides?check=1', { credentials: 'same-origin', cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (j) {
             if (j.result && !j.running) { done(j.result.ok ? 'ok-text' : 'bad-text', j.result.detail); return; }
             if (++tries > 80) { done('bad-text', 'The test is taking too long. Try again later.'); return; }
             setTimeout(poll, 1500);
           }).catch(function () { done('bad-text', 'Could not get the test result.'); });
         };
-        fetch('guides.php', { method: 'POST', body: fd, credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (j) {
+        fetch('guides', { method: 'POST', body: fd, credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (j) {
           if (j.error) { done('bad-text', j.error); return; }
           setTimeout(poll, 1500);
         }).catch(function () { done('bad-text', 'Could not start the test.'); });

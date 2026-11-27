@@ -2,8 +2,8 @@
 (function () {
   'use strict';
 
-  var API = 'guide_api.php';
-  // The guide chosen on the page (guide.php sets window.EPG_GUIDE).
+  var API = 'api/guide';
+  // The guide chosen on the page (tv sets window.EPG_GUIDE).
   var GUIDE_QS = window.EPG_GUIDE ? '&guide=' + encodeURIComponent(window.EPG_GUIDE) : '';
   var GROUPS = ['movie', 'series', 'news', 'sports', 'kids', 'music', 'documentary'];
   var BATCH = 80;        // channels per programme request
@@ -183,7 +183,7 @@
       ch.appendChild(make('span', 'g-logo-none', c[2].slice(0, 2)));
     }
     ch.appendChild(make('span', 'g-ch-name', c[2]));
-    // Click (or Enter) opens the "Channel logo" dialog on guide.php.
+    // Click (or Enter) opens the "Channel logo" dialog on tv.
     if (!c[3]) ch.classList.add('no-logo');
     ch.tabIndex = 0;
     ch.setAttribute('role', 'button');

@@ -1,4 +1,4 @@
-//! Channel logos set from the TV Guide page (logo_api.php). JSON only, login
+//! Channel logos set from the TV Guide page (api/logo). JSON only, login
 //! and CSRF required.
 //!
 //!   GET  ?channel=<id>                    current logo, where it comes from, limits

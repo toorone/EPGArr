@@ -1,4 +1,4 @@
-//! The Activity page (activity.php): background TMDB lookups and guide builds, live.
+//! The Activity page (activity): background TMDB lookups and guide builds, live.
 
 use axum::extract::{Form, Query, State};
 use axum::http::{HeaderMap, StatusCode};
@@ -83,7 +83,7 @@ pub async fn page_get(State(app): State<Shared>, headers: HeaderMap, Query(q): Q
         return json(&ctx, StatusCode::OK, data(&app));
     }
     if ctx.user.is_none() {
-        return auth::login_page(&app, &ctx, "activity.php");
+        return auth::login_page(&app, &ctx, "activity");
     }
     let csrf = csrf_field(&ctx);
     let bg_on = settings(&app).get("tmdb_background").map_or(true, |v| v != "0");
@@ -103,7 +103,7 @@ pub async fn page_get(State(app): State<Shared>, headers: HeaderMap, Query(q): Q
                 r#"<span class="ok-text">up to date</span>"#
             };
             format!(
-                r#"<tr><td><strong>{name}</strong></td><td>{status}</td><td>{when}</td><td>{ch}</td><td><form method="post" action="guides.php" class="inline act-gbuild">{csrf}<input type="hidden" name="action" value="build_guide"><input type="hidden" name="back" value="activity"><input type="hidden" name="id" value="{id}"><button class="ghost"{dis}>Build</button></form></td></tr>"#,
+                r#"<tr><td><strong>{name}</strong></td><td>{status}</td><td>{when}</td><td>{ch}</td><td><form method="post" action="guides" class="inline act-gbuild">{csrf}<input type="hidden" name="action" value="build_guide"><input type="hidden" name="back" value="activity"><input type="hidden" name="id" value="{id}"><button class="ghost"{dis}>Build</button></form></td></tr>"#,
                 name = esc(&g.name),
                 when = esc(&when(built)),
                 ch = num(st_i64(&st, "channels")),
@@ -122,7 +122,7 @@ pub async fn page_get(State(app): State<Shared>, headers: HeaderMap, Query(q): Q
         resume = if bg_on {
             "Resumes on its own every 15 minutes until every title is done. Pause stops it until you press Start.".to_string()
         } else {
-            r#"Automatic resume is off in <a href="settings.php">Settings</a>; use Start here."#.to_string()
+            r#"Automatic resume is off in <a href="settings">Settings</a>; use Start here."#.to_string()
         },
         grid = icon("grid"),
         list = icon("list"),
@@ -136,12 +136,12 @@ pub async fn page_get(State(app): State<Shared>, headers: HeaderMap, Query(q): Q
 pub async fn page_post(State(app): State<Shared>, headers: HeaderMap, Form(form): Form<Vec<(String, String)>>) -> Response {
     let ctx = app.ctx(&headers);
     if ctx.user.is_none() {
-        return auth::login_page(&app, &ctx, "activity.php");
+        return auth::login_page(&app, &ctx, "activity");
     }
     let f = Posted(form);
     if f.get("csrf") != ctx.csrf {
         app.flash(&ctx, "error", "The form expired. Please try again.");
-        return redirect(&ctx, "activity.php");
+        return redirect(&ctx, "activity");
     }
     match f.get("action").as_str() {
         "enrich_start" => match jobs::start_enrich(&app) {
@@ -162,5 +162,5 @@ pub async fn page_post(State(app): State<Shared>, headers: HeaderMap, Form(form)
         },
         _ => {}
     }
-    redirect(&ctx, "activity.php")
+    redirect(&ctx, "activity")
 }

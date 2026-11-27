@@ -1,4 +1,4 @@
-//! The Guides page (guides.php): each guide's card, add/edit dialog, order,
+//! The Guides page (guides): each guide's card, add/edit dialog, order,
 //! build, source test, turn off, delete.
 
 use axum::extract::{Form, Query, State};
@@ -55,7 +55,7 @@ fn unique_slug(guides: &[db::Guide], name: &str, except: i64) -> String {
 pub async fn page_get(State(app): State<Shared>, headers: HeaderMap, Query(q): Query<HashMap<String, String>>) -> Response {
     let ctx = app.ctx(&headers);
     if ctx.user.is_none() {
-        return auth::login_page(&app, &ctx, "guides.php");
+        return auth::login_page(&app, &ctx, "guides");
     }
     // The source test in the add/edit dialog polls this.
     if q.contains_key("check") {
@@ -134,7 +134,7 @@ fn render(app: &Shared, ctx: &Ctx, headers: &HeaderMap, guides: &[db::Guide], op
         };
         let has_file = app.output_dir.join("guides").join(format!("{}.xml", g.slug)).is_file();
         cards.push_str(&format!(
-            r#"<article class="card guide-card{off}" data-id="{id}"><div class="hero-head">{handle}<h2>{tv}{name}</h2><span class="pill pill-{pill}">{label}</span></div><p class="muted guide-src">{src}{days} · every {every} h</p>{check}{err}<dl class="guide-facts"><dt>Channels</dt><dd>{ch}</dd><dt>Programmes</dt><dd>{pr}</dd><dt>Last update</dt><dd>{last}</dd><dt>Next update</dt><dd>{nxt}</dd></dl><div class="url-box"><span class="url-fmt" role="group" aria-label="File format"><button type="button" class="on" data-for="url-{slug}" data-url="{url}">XML</button><button type="button" data-for="url-{slug}" data-url="{gz}">GZ</button></span><input type="text" id="url-{slug}" value="{url}" readonly aria-label="{name} guide address"><button type="button" class="copy" data-for="url-{slug}"{nf}>{copy}<span>Copy</span></button></div><div class="guide-actions"><form method="post" class="inline">{csrf}<input type="hidden" name="action" value="build_guide"><input type="hidden" name="id" value="{id}"><button class="ga-primary"{dis}>{play}Build now</button></form><span class="ga-right"><a class="ga-icon" href="guide.php?guide={slug}" title="View in TV Guide" aria-label="View {name} in TV Guide">{eye}</a><button type="button" class="ga-icon" title="Edit" aria-label="Edit {name}" data-edit="{data}">{edit}</button><details class="ga-more"><summary aria-label="More actions" title="More actions"><span aria-hidden="true">&#8943;</span></summary><div class="ga-menu"><form method="post">{csrf}<input type="hidden" name="action" value="test_guide"><input type="hidden" name="id" value="{id}"><button>Test source</button></form><form method="post">{csrf}<input type="hidden" name="action" value="toggle_guide"><input type="hidden" name="id" value="{id}"><button>{toggle}</button></form>{delete}</div></details></span></div></article>"#,
+            r#"<article class="card guide-card{off}" data-id="{id}"><div class="hero-head">{handle}<h2>{tv}{name}</h2><span class="pill pill-{pill}">{label}</span></div><p class="muted guide-src">{src}{days} · every {every} h</p>{check}{err}<dl class="guide-facts"><dt>Channels</dt><dd>{ch}</dd><dt>Programmes</dt><dd>{pr}</dd><dt>Last update</dt><dd>{last}</dd><dt>Next update</dt><dd>{nxt}</dd></dl><div class="url-box"><span class="url-fmt" role="group" aria-label="File format"><button type="button" class="on" data-for="url-{slug}" data-url="{url}">XML</button><button type="button" data-for="url-{slug}" data-url="{gz}">GZ</button></span><input type="text" id="url-{slug}" value="{url}" readonly aria-label="{name} guide address"><button type="button" class="copy" data-for="url-{slug}"{nf}>{copy}<span>Copy</span></button></div><div class="guide-actions"><form method="post" class="inline">{csrf}<input type="hidden" name="action" value="build_guide"><input type="hidden" name="id" value="{id}"><button class="ga-primary"{dis}>{play}Build now</button></form><span class="ga-right"><a class="ga-icon" href="tv?guide={slug}" title="View in TV Guide" aria-label="View {name} in TV Guide">{eye}</a><button type="button" class="ga-icon" title="Edit" aria-label="Edit {name}" data-edit="{data}">{edit}</button><details class="ga-more"><summary aria-label="More actions" title="More actions"><span aria-hidden="true">&#8943;</span></summary><div class="ga-menu"><form method="post">{csrf}<input type="hidden" name="action" value="test_guide"><input type="hidden" name="id" value="{id}"><button>Test source</button></form><form method="post">{csrf}<input type="hidden" name="action" value="toggle_guide"><input type="hidden" name="id" value="{id}"><button>{toggle}</button></form>{delete}</div></details></span></div></article>"#,
             off = if g.enabled { "" } else { " is-off" },
             id = g.id,
             tv = icon("tv"),
@@ -236,7 +236,7 @@ fn guide_input(f: &Posted) -> Result<GuideInput, Vec<String>> {
 pub async fn page_post(State(app): State<Shared>, headers: HeaderMap, Form(form): Form<Vec<(String, String)>>) -> Response {
     let ctx = app.ctx(&headers);
     if ctx.user.is_none() {
-        return auth::login_page(&app, &ctx, "guides.php");
+        return auth::login_page(&app, &ctx, "guides");
     }
     let f = Posted(form);
     let action = f.get("action");
@@ -245,22 +245,22 @@ pub async fn page_post(State(app): State<Shared>, headers: HeaderMap, Form(form)
             return json(&ctx, StatusCode::OK, json!({ "error": "The page expired. Reload it and try again." }));
         }
         app.flash(&ctx, "error", "The form expired. Please try again.");
-        return redirect(&ctx, "guides.php");
+        return redirect(&ctx, "guides");
     }
     let conn = match app.db() {
         Ok(c) => c,
         Err(e) => {
             app.flash(&ctx, "error", format!("{e:#}"));
-            return redirect(&ctx, "guides.php");
+            return redirect(&ctx, "guides");
         }
     };
     let guides = db::guides(&conn).unwrap_or_default();
     let id: i64 = f.get("id").parse().unwrap_or(0);
     let g = guides.iter().find(|g| g.id == id).cloned();
     let back = match f.get("back").as_str() {
-        "activity" => "activity.php",
-        "index" => "index.php",
-        _ => "guides.php",
+        "activity" => "activity",
+        "index" => "./",
+        _ => "guides",
     };
     match action.as_str() {
         "reorder" => {
@@ -300,13 +300,13 @@ pub async fn page_post(State(app): State<Shared>, headers: HeaderMap, Form(form)
                     for e in errs {
                         app.flash(&ctx, "error", e);
                     }
-                    return redirect(&ctx, &if is_new { "guides.php?add=1".to_string() } else { format!("guides.php?edit={id}") });
+                    return redirect(&ctx, &if is_new { "guides?add=1".to_string() } else { format!("guides?edit={id}") });
                 }
                 (Ok(_), None) if !is_new => app.flash(&ctx, "error", "That guide no longer exists."),
                 (Ok(i), cur) => {
                     if guides.iter().any(|o| o.name.eq_ignore_ascii_case(&i.name) && (is_new || o.id != id)) {
                         app.flash(&ctx, "error", format!("There is already a guide called \"{}\". Pick another name.", i.name));
-                        return redirect(&ctx, &if is_new { "guides.php?add=1".to_string() } else { format!("guides.php?edit={id}") });
+                        return redirect(&ctx, &if is_new { "guides?add=1".to_string() } else { format!("guides?edit={id}") });
                     }
                     if is_new {
                         let slug = unique_slug(&guides, &i.name, 0);

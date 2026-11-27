@@ -5,7 +5,7 @@
     var saved = null;
     try { saved = localStorage.getItem('epg-guide'); } catch (e) {}
     if (!/[?&]guide=/.test(location.search) && saved && saved !== window.EPG_GUIDE && known.indexOf(saved) >= 0) {
-      location.replace('guide.php?guide=' + encodeURIComponent(saved));
+      location.replace('tv?guide=' + encodeURIComponent(saved));
       return;
     }
     try { if (window.EPG_GUIDE) localStorage.setItem('epg-guide', window.EPG_GUIDE); } catch (e) {}
@@ -13,7 +13,7 @@
     document.addEventListener('change', function (e) {
       var s = e.target;
       if (!s || s.id !== 'g-guide') return;
-      location.href = s.value === '__add__' ? 'guides.php' : 'guide.php?guide=' + encodeURIComponent(s.value);
+      location.href = s.value === '__add__' ? 'guides' : 'tv?guide=' + encodeURIComponent(s.value);
     });
   })();
   
@@ -57,7 +57,7 @@
     function post(fd) {
       fd.append('csrf', form.dataset.csrf);
       fd.append('channel', chan.id);
-      return fetch('logo_api.php', { method: 'POST', body: fd, credentials: 'same-origin' }).then(function (r) { return r.json(); });
+      return fetch('api/logo', { method: 'POST', body: fd, credentials: 'same-origin' }).then(function (r) { return r.json(); });
     }
     function done(j) {
       $('logo-save').disabled = false;
@@ -82,7 +82,7 @@
       setTab('upload');
       preview(chan.logo);
       if (dlg.showModal) { dlg.showModal(); } else { dlg.setAttribute('open', ''); }
-      fetch('logo_api.php?channel=' + encodeURIComponent(chan.id), { credentials: 'same-origin', cache: 'no-store' })
+      fetch('api/logo?channel=' + encodeURIComponent(chan.id), { credentials: 'same-origin', cache: 'no-store' })
         .then(function (r) { return r.json(); })
         .then(function (j) {
           if (j.error) { $('logo-source').textContent = j.error; return; }
@@ -243,7 +243,7 @@
       timer = setTimeout(function () {
         var mine = ++seq;
         var g = window.EPG_GUIDE ? '&guide=' + encodeURIComponent(window.EPG_GUIDE) : '';
-        fetch('guide_api.php?search=' + encodeURIComponent(q) + g, { credentials: 'same-origin' })
+        fetch('api/guide?search=' + encodeURIComponent(q) + g, { credentials: 'same-origin' })
           .then(function (r) { return r.json(); })
           .then(function (j) { if (mine === seq) show(j.results || [], j.now || Math.floor(Date.now() / 1000)); })
           .catch(function () {});

@@ -7,6 +7,12 @@ update.
 ## Unreleased
 
 ### Changed
+- **No more `.php` in any address.** The pages are now `/`, `/guides`, `/tv`
+  (TV Guide), `/activity` and `/settings`; the page scripts use `/api/guide`
+  and `/api/logo`. The old addresses (`index.php`, `guides.php`, `guide.php`,
+  `activity.php`, `settings.php`, `guide_api.php`, `logo_api.php`) redirect to
+  the new ones, so bookmarks keep working. Guide files are unchanged
+  (`/guides/<name>.xml`).
 - Install and update from the published image: `docker pull
   ghcr.io/toorone/epgarr:latest` (README and `docker-compose.yml` now use it
   instead of building from the source).

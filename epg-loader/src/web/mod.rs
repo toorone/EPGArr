@@ -2,8 +2,9 @@
 //! (no PHP, no nginx). The same process also runs the scheduler (the
 //! `watch` loop), so one container runs one program.
 //!
-//! The URLs are the same as the old PHP pages (index.php, guides.php,
-//! guide_api.php, ...) so bookmarks and the page scripts keep working.
+//! Pages: /, /guides, /tv, /activity, /settings; data for the page scripts:
+//! /api/guide, /api/logo. The old PHP addresses (index.php, guides.php, ...)
+//! redirect to the new ones so bookmarks keep working.
 
 pub mod activity;
 pub mod auth;
@@ -20,7 +21,7 @@ use axum::body::Body;
 use axum::extract::{Path as UrlPath, State};
 use axum::http::{header, HeaderMap, HeaderValue, StatusCode};
 use axum::response::{IntoResponse, Response};
-use axum::routing::{get, post};
+use axum::routing::{any, get, post};
 use axum::Router;
 use rusqlite::Connection;
 use std::collections::HashMap;
@@ -308,18 +309,41 @@ pub async fn read_post(req: axum::extract::Request, max_file: usize) -> (guides:
     (guides::Posted(fields), files)
 }
 
+/// The old PHP addresses: a permanent redirect to the new one (308 keeps a POST a POST).
+async fn old_address(UrlPath(old): UrlPath<String>, uri: axum::http::Uri) -> Response {
+    let new = match old.as_str() {
+        "index.php" => "/",
+        "guides.php" => "/guides",
+        "guide.php" => "/tv",
+        "activity.php" => "/activity",
+        "settings.php" => "/settings",
+        "guide_api.php" => "/api/guide",
+        "logo_api.php" => "/api/logo",
+        _ => return StatusCode::NOT_FOUND.into_response(),
+    };
+    let to = match uri.query() {
+        Some(q) => format!("{new}?{q}"),
+        None => new.to_string(),
+    };
+    let mut r = StatusCode::PERMANENT_REDIRECT.into_response();
+    if let Ok(v) = HeaderValue::from_str(&to) {
+        r.headers_mut().insert(header::LOCATION, v);
+    }
+    r
+}
+
 pub fn router(app: Shared) -> Router {
     Router::new()
         .route("/", get(dash::page_get))
-        .route("/index.php", get(dash::page_get))
         .route("/login", post(auth::login_post))
         .route("/logout", post(auth::logout_post))
-        .route("/guides.php", get(guides::page_get).post(guides::page_post))
-        .route("/activity.php", get(activity::page_get).post(activity::page_post))
-        .route("/settings.php", get(settings::page_get).post(settings::page_post).layer(axum::extract::DefaultBodyLimit::max(64 << 20)))
-        .route("/logo_api.php", get(logo::info).post(logo::post).layer(axum::extract::DefaultBodyLimit::max(4 << 20)))
-        .route("/guide.php", get(tv::guide_page))
-        .route("/guide_api.php", get(tv::guide_api))
+        .route("/guides", get(guides::page_get).post(guides::page_post))
+        .route("/activity", get(activity::page_get).post(activity::page_post))
+        .route("/settings", get(settings::page_get).post(settings::page_post).layer(axum::extract::DefaultBodyLimit::max(64 << 20)))
+        .route("/api/logo", get(logo::info).post(logo::post).layer(axum::extract::DefaultBodyLimit::max(4 << 20)))
+        .route("/tv", get(tv::guide_page))
+        .route("/api/guide", get(tv::guide_api))
+        .route("/{old}", any(old_address))
         .route("/assets/{*rel}", get(assets))
         .route("/guides/{*rel}", get(guide_files))
         .route("/logos/{*rel}", get(logo_files))

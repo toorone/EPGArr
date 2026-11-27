@@ -1,4 +1,4 @@
-//! The TV Guide page and its data feed (guide_api.php).
+//! The TV Guide page and its data feed (api/guide).
 
 use axum::extract::{Query, State};
 use axum::http::{HeaderMap, StatusCode};
@@ -25,8 +25,8 @@ pub async fn guide_page(State(app): State<Shared>, headers: HeaderMap, Query(q):
     let ctx = app.ctx(&headers);
     if ctx.user.is_none() {
         let next = match q.get("guide") {
-            Some(g) => format!("guide.php?guide={}", url_encode(g)),
-            None => "guide.php".into(),
+            Some(g) => format!("tv?guide={}", url_encode(g)),
+            None => "tv".into(),
         };
         return auth::login_page(&app, &ctx, &next);
     }
@@ -92,7 +92,7 @@ fn page_html(ctx: &Ctx, guides: &[db::Guide], sel: Option<&db::Guide>, empty: &s
         (
             format!(r#"<div class="g-tools-top">{picker}</div>"#),
             format!(
-                r#"{globals}<div class="card g-empty"><h2>{g}Nothing to show yet</h2><p class="muted">{m}</p><a class="button" href="guides.php">{l}Open Guides</a></div><script src="assets/tvguide.js?v={v}"></script>"#,
+                r#"{globals}<div class="card g-empty"><h2>{g}Nothing to show yet</h2><p class="muted">{m}</p><a class="button" href="guides">{l}Open Guides</a></div><script src="assets/tvguide.js?v={v}"></script>"#,
                 g = icon("grid"),
                 m = esc(empty),
                 l = icon("list"),
@@ -132,7 +132,7 @@ pub fn url_encode(s: &str) -> String {
 
 // ---------------------------------------------------------------- data feed
 
-/// guide_api.php: the channel list (default), ?progs=1&ch=..&from=..&to=.., ?id=.., ?search=..
+/// api/guide: the channel list (default), ?progs=1&ch=..&from=..&to=.., ?id=.., ?search=..
 pub async fn guide_api(State(app): State<Shared>, headers: HeaderMap, Query(q): Query<HashMap<String, String>>) -> Response {
     let ctx = app.ctx(&headers);
     if ctx.user.is_none() {

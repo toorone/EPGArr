@@ -1,4 +1,4 @@
-//! The Dashboard (index.php): overall tiles, one row per guide, recent builds.
+//! The Dashboard (/): overall tiles, one row per guide, recent builds.
 
 use axum::extract::{Query, State};
 use axum::http::HeaderMap;
@@ -55,10 +55,10 @@ fn get_started(app: &Shared) -> String {
     let key_step = if has_key {
         r#"<li class="done"><strong>Artwork and info</strong><p class="muted">Your TMDB key is saved, so posters, ratings and descriptions will be added.</p></li>"#.to_string()
     } else {
-        r#"<li><strong>Artwork and info (optional)</strong><p class="muted">Paste a free TMDB API key so posters, ratings and descriptions are added. Without it the guide still works, with channel logos, IMDb ratings, TVmaze and TheSportsDB.</p><a class="button secondary" href="settings.php#artwork">Open Settings</a></li>"#.to_string()
+        r#"<li><strong>Artwork and info (optional)</strong><p class="muted">Paste a free TMDB API key so posters, ratings and descriptions are added. Without it the guide still works, with channel logos, IMDb ratings, TVmaze and TheSportsDB.</p><a class="button secondary" href="settings#artwork">Open Settings</a></li>"#.to_string()
     };
     format!(
-        r#"<div class="card start-card"><h2>{icon}Get started</h2><p class="muted">EPGArr turns your XMLTV source into a guide your media server can use. Three steps:</p><ol class="start-steps"><li><strong>Add your first guide</strong><p class="muted">Give it a name and the address of your XMLTV source (from your IPTV provider or an EPG site). Use <em>Test source</em> to check it before saving.</p><a class="button" href="guides.php?add=1">Add a guide</a></li>{key_step}<li><strong>Build it and add it to your media server</strong><p class="muted">Press <em>Build now</em>; the first build takes a few minutes. Then copy the guide's address from the Dashboard into Emby, Plex or Jellyfin as an XMLTV guide source. It is rebuilt every {h} hours after that.</p></li></ol></div>"#,
+        r#"<div class="card start-card"><h2>{icon}Get started</h2><p class="muted">EPGArr turns your XMLTV source into a guide your media server can use. Three steps:</p><ol class="start-steps"><li><strong>Add your first guide</strong><p class="muted">Give it a name and the address of your XMLTV source (from your IPTV provider or an EPG site). Use <em>Test source</em> to check it before saving.</p><a class="button" href="guides?add=1">Add a guide</a></li>{key_step}<li><strong>Build it and add it to your media server</strong><p class="muted">Press <em>Build now</em>; the first build takes a few minutes. Then copy the guide's address from the Dashboard into Emby, Plex or Jellyfin as an XMLTV guide source. It is rebuilt every {h} hours after that.</p></li></ol></div>"#,
         icon = icon("check"),
         h = super::common::hours_text(default_hours(app)),
     )
@@ -67,7 +67,7 @@ fn get_started(app: &Shared) -> String {
 pub async fn page_get(State(app): State<Shared>, headers: HeaderMap, Query(q): Query<HashMap<String, String>>) -> Response {
     let ctx = app.ctx(&headers);
     if ctx.user.is_none() {
-        return auth::login_page(&app, &ctx, "index.php");
+        return auth::login_page(&app, &ctx, "./");
     }
     let conn = match app.db() {
         Ok(c) => c,
@@ -136,7 +136,7 @@ pub async fn page_get(State(app): State<Shared>, headers: HeaderMap, Query(q): Q
         let next = if built > 0 && g.enabled { (timeutil::now_unix().max(built + (h * 3600.0).round() as i64) + 899) / 900 * 900 } else { 0 };
         let uid = format!("url-{}", g.slug);
         rows.push_str(&format!(
-            r#"<div class="guide-row{off}"><div class="gr-name"><strong>{name}</strong><span class="pill pill-{pill}">{label}</span></div><div class="gr-facts muted"><span>Updated {upd}</span><span>Next {nxt}</span><span>{ch} channels</span></div><div class="url-box gr-url"><span class="url-fmt" role="group" aria-label="File format"><button type="button" class="on" data-for="{uid}" data-url="{url}">XML</button><button type="button" data-for="{uid}" data-url="{gz}">GZ</button></span><input type="text" id="{uid}" value="{url}" readonly aria-label="{name} guide address"><button type="button" class="copy" data-for="{uid}">{copy}<span>Copy</span></button></div><form method="post" action="guides.php" class="inline gr-build">{csrf}<input type="hidden" name="action" value="build_guide"><input type="hidden" name="back" value="index"><input type="hidden" name="id" value="{id}"><button class="secondary"{dis}>Build now</button></form></div>"#,
+            r#"<div class="guide-row{off}"><div class="gr-name"><strong>{name}</strong><span class="pill pill-{pill}">{label}</span></div><div class="gr-facts muted"><span>Updated {upd}</span><span>Next {nxt}</span><span>{ch} channels</span></div><div class="url-box gr-url"><span class="url-fmt" role="group" aria-label="File format"><button type="button" class="on" data-for="{uid}" data-url="{url}">XML</button><button type="button" data-for="{uid}" data-url="{gz}">GZ</button></span><input type="text" id="{uid}" value="{url}" readonly aria-label="{name} guide address"><button type="button" class="copy" data-for="{uid}">{copy}<span>Copy</span></button></div><form method="post" action="guides" class="inline gr-build">{csrf}<input type="hidden" name="action" value="build_guide"><input type="hidden" name="back" value="index"><input type="hidden" name="id" value="{id}"><button class="secondary"{dis}>Build now</button></form></div>"#,
             off = if g.enabled { "" } else { " is-off" },
             name = esc(&g.name),
             upd = esc(&ago(built)),
@@ -153,7 +153,7 @@ pub async fn page_get(State(app): State<Shared>, headers: HeaderMap, Query(q): Q
 
     let history = history_card(&conn, &guides, show_all);
     let body = format!(
-        r#"{tiles}<div class="card"><div class="hero-head"><h2>{list}Your guides</h2><a href="guides.php">Manage guides</a></div><p class="hint" style="margin:0 0 0.8rem">Add a guide's address as an XMLTV guide source in your media server (Emby, Plex, Jellyfin or any XMLTV client).</p><div class="guide-rows">{rows}</div></div>{history}<script>window.EPG_BUSY = {busy};</script><script src="assets/page-dashboard.js?v={v}"></script>"#,
+        r#"{tiles}<div class="card"><div class="hero-head"><h2>{list}Your guides</h2><a href="guides">Manage guides</a></div><p class="hint" style="margin:0 0 0.8rem">Add a guide's address as an XMLTV guide source in your media server (Emby, Plex, Jellyfin or any XMLTV client).</p><div class="guide-rows">{rows}</div></div>{history}<script>window.EPG_BUSY = {busy};</script><script src="assets/page-dashboard.js?v={v}"></script>"#,
         list = icon("list"),
         busy = building || app.jobs.running().is_some(),
         v = env!("CARGO_PKG_VERSION"),
@@ -271,9 +271,9 @@ fn history_card(conn: &Connection, guides: &[db::Guide], show_all: bool) -> Stri
     let link = if count == 0 {
         String::new()
     } else if show_all {
-        r#"<a href="index.php#history">Show fewer</a>"#.to_string()
+        r#"<a href="./#history">Show fewer</a>"#.to_string()
     } else {
-        r#"<a href="index.php?history=all#history">View all</a>"#.to_string()
+        r#"<a href="./?history=all#history">View all</a>"#.to_string()
     };
     let table = if count == 0 {
         r#"<p class="muted">No builds yet.</p>"#.to_string()

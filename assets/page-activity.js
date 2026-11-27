@@ -79,7 +79,7 @@
       $('act-log').scrollTop = $('act-log').scrollHeight;
       function poll() {
         if (document.hidden) { setTimeout(poll, 2500); return; }
-        fetch('activity.php?json=1', { credentials: 'same-origin', cache: 'no-store' })
+        fetch('activity?json=1', { credentials: 'same-origin', cache: 'no-store' })
           .then(function (r) { if (r.status === 401) { location.reload(); throw new Error('login'); } return r.json(); })
           .then(function (d) { render(d); })
           .catch(function () {})
