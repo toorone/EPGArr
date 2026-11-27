@@ -44,6 +44,7 @@ pub fn icon(name: &str) -> String {
         "search" => r#"<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>"#,
         "x" => r#"<path d="M18 6 6 18M6 6l12 12"/>"#,
         "user" => r#"<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>"#,
+        "check" => r#"<path d="M20 6 9 17l-5-5"/>"#,
         "logout" => r#"<path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M15 12H3"/>"#,
         _ => "",
     };

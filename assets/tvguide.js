@@ -9,12 +9,30 @@
       return;
     }
     try { if (window.EPG_GUIDE) localStorage.setItem('epg-guide', window.EPG_GUIDE); } catch (e) {}
-    // The picker is drawn further down the page, so listen on the document.
-    document.addEventListener('change', function (e) {
-      var s = e.target;
-      if (!s || s.id !== 'g-guide') return;
-      location.href = s.value === '__add__' ? 'guides' : 'tv?guide=' + encodeURIComponent(s.value);
+  })();
+
+  // Guide picker: a small menu in the app's own style.
+  (function () {
+    var btn = document.getElementById('g-pick-btn'), menu = document.getElementById('g-pick-menu');
+    if (!btn || !menu) return;
+    var items = function () { return Array.prototype.slice.call(menu.querySelectorAll('a')); };
+    function open(on) {
+      menu.hidden = !on;
+      btn.setAttribute('aria-expanded', on ? 'true' : 'false');
+      if (on) { (menu.querySelector('a.on') || items()[0]).focus(); }
+    }
+    btn.addEventListener('click', function (e) { e.stopPropagation(); open(menu.hidden); });
+    btn.addEventListener('keydown', function (e) {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); open(true); }
     });
+    menu.addEventListener('keydown', function (e) {
+      var list = items(), i = list.indexOf(document.activeElement);
+      if (e.key === 'ArrowDown') { e.preventDefault(); list[Math.min(list.length - 1, i + 1)].focus(); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); list[Math.max(0, i - 1)].focus(); }
+      else if (e.key === 'Escape') { open(false); btn.focus(); }
+      else if (e.key === 'Tab') { open(false); }
+    });
+    document.addEventListener('click', function (e) { if (!menu.hidden && !menu.contains(e.target)) open(false); });
   })();
   
   (function () {

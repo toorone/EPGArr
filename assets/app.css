@@ -147,7 +147,6 @@ table.compact td, table.compact th { padding-top: 0.4rem; padding-bottom: 0.4rem
 .g-tools-top { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: center; }
 .g-pick { position: relative; display: flex; align-items: center; margin: 0; }
 .g-pick > svg { position: absolute; left: 0.75rem; width: 17px; height: 17px; color: var(--accent); pointer-events: none; }
-.g-pick select { height: var(--ctl-h); padding: 0 2rem 0 2.3rem; border-radius: 999px; min-width: 180px; margin: 0; }
 .guide-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 1.25rem; align-items: start; }
 .guide-list > .card { margin: 0; }
 .guide-card.is-off { opacity: 0.6; }
@@ -686,11 +685,10 @@ table.runs tr.run-detail td { background: rgba(255, 255, 255, 0.02); padding: 0.
 .g-bar .g-chips.fade-l.fade-r { -webkit-mask-image: linear-gradient(90deg, transparent, #000 28px, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(90deg, transparent, #000 28px, #000 calc(100% - 28px), transparent); }
 .g-scroll-btn { flex: none; display: grid; place-items: center; width: 28px; height: var(--ctl-h); margin: 0; padding: 0; border-radius: 8px; background: transparent; box-shadow: none; color: var(--muted); font-size: 1.2rem; }
 .g-scroll-btn:hover { color: var(--text); background: rgba(255, 255, 255, 0.06); filter: none; }
-.g-bar .g-chips button, .g-bar .g-days button, .g-bar .g-pick select, .g-bar .search-field input { height: var(--ctl-h); }
+.g-bar .g-chips button, .g-bar .g-days button, .g-bar .search-field input { height: var(--ctl-h); }
 .g-bar .g-day-label { min-width: 0; padding: 0 0.4rem; }
 .g-bar .search-field { width: 190px; transition: width 0.2s; }
 .g-bar .search-field:focus-within { width: 260px; }
-.g-bar .g-pick select { min-width: 140px; }
 @media (max-width: 900px) {
   .g-bar { flex-wrap: wrap; }
   .g-bar .g-chips-wrap { order: 3; flex-basis: 100%; }
@@ -781,3 +779,22 @@ table.runs tr.run-detail td { background: rgba(255, 255, 255, 0.02); padding: 0.
   .nav-who, .nav-version { display: none; }
   .nav-version.update { display: flex; }
 }
+
+/* TV Guide: the guide fills the window and scrolls inside itself. */
+main.page-guide { padding-bottom: 1rem; }
+
+/* TV Guide: guide picker menu (in the app's own style, not the browser's drop-down). */
+.g-pick-btn { display: inline-flex; align-items: center; gap: 0.5rem; height: var(--ctl-h); min-width: 150px; max-width: 240px; margin: 0; padding: 0 0.75rem 0 0.8rem; border-radius: 999px; border: 1px solid rgba(255, 255, 255, 0.1); background: #0f1115; box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.4); color: var(--text); font: inherit; font-weight: 500; cursor: pointer; }
+.g-pick-btn:hover, .g-pick-btn[aria-expanded="true"] { border-color: var(--accent); filter: none; }
+.g-pick-btn > svg:first-child { width: 17px; height: 17px; flex: none; color: var(--accent); }
+.g-pick-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
+.g-pick-caret { width: 15px; height: 15px; flex: none; color: var(--muted); transition: transform 0.15s; }
+.g-pick-btn[aria-expanded="true"] .g-pick-caret { transform: rotate(180deg); }
+.g-pick-menu { position: absolute; top: calc(100% + 6px); left: 0; z-index: 30; min-width: 100%; max-width: 320px; max-height: 60vh; overflow-y: auto; padding: 0.35rem; border-radius: 12px; border: 1px solid var(--line); background: var(--panel-2); box-shadow: var(--shadow-3); }
+.g-pick-item { display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.7rem; border-radius: 8px; color: var(--text); font-weight: 500; white-space: nowrap; }
+.g-pick-item > span:first-child { flex: 1; overflow: hidden; text-overflow: ellipsis; }
+.g-pick-item:hover, .g-pick-item:focus-visible { background: rgba(255, 255, 255, 0.06); text-decoration: none; outline: none; box-shadow: none; }
+.g-pick-item.on { background: var(--accent-soft); }
+.g-pick-item svg { width: 15px; height: 15px; flex: none; color: var(--accent); }
+.g-pick-item .pill { font-size: 0.7rem; }
+.g-pick-add { margin-top: 0.3rem; padding-top: 0.55rem; border-top: 1px solid var(--line); border-radius: 0 0 8px 8px; color: var(--accent); }

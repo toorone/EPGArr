@@ -40,12 +40,15 @@ pub async fn guide_page(State(app): State<Shared>, headers: HeaderMap, Query(q):
                         .unwrap_or(0)
                 })
                 .unwrap_or(0);
-            let empty = if has > 0 {
-                String::new()
-            } else if let (Some(g), true) = (sel, guides.len() > 1) {
-                format!("The guide \"{}\" has not been built yet. Build it on the Guides page.", g.name)
-            } else {
-                "No guide has been stored yet. Build it on the Guides page and it will show up here.".to_string()
+            let built = sel.is_some_and(|g| super::common::st_i64(&super::common::guide_status(&app, g), "built_at_unix") > 0);
+            let empty = match sel {
+                _ if has > 0 => String::new(),
+                Some(g) if built => format!(
+                    "The guide \"{}\" is built, but its source has no programmes from today on. Check the source on the Guides page.",
+                    g.name
+                ),
+                Some(g) => format!("The guide \"{}\" has not been built yet. Build it on the Guides page.", g.name),
+                None => "No guide has been added yet. Add one on the Guides page and it will show up here.".to_string(),
             };
             (guides, empty)
         }
@@ -58,21 +61,24 @@ pub async fn guide_page(State(app): State<Shared>, headers: HeaderMap, Query(q):
 fn page_html(ctx: &Ctx, guides: &[db::Guide], sel: Option<&db::Guide>, empty: &str) -> Response {
     let picker = match sel {
         Some(s) if !guides.is_empty() => {
-            let opts: String = guides
+            let items: String = guides
                 .iter()
                 .map(|g| {
+                    let on = g.slug == s.slug;
                     format!(
-                        r#"<option value="{v}"{selected}>{n}{off}</option>"#,
-                        v = esc(&g.slug),
-                        selected = if g.slug == s.slug { " selected" } else { "" },
+                        r#"<a role="option" href="tv?guide={v}" aria-selected="{on}" class="g-pick-item{cls}"><span>{n}</span>{off}{tick}</a>"#,
+                        v = url_encode(&g.slug),
+                        cls = if on { " on" } else { "" },
                         n = esc(&g.name),
-                        off = if g.enabled { "" } else { " (off)" },
+                        off = if g.enabled { "" } else { r#"<span class="pill">off</span>"# },
+                        tick = if on { icon("check") } else { String::new() },
                     )
                 })
                 .collect();
             format!(
-                r#"<label class="g-pick">{ic}<span class="sr-only">Guide</span><select id="g-guide" class="input" aria-label="Choose a guide">{opts}<option value="__add__">+ Add guide…</option></select></label>"#,
-                ic = icon("list")
+                r#"<div class="g-pick" id="g-pick"><button type="button" class="g-pick-btn" id="g-pick-btn" aria-haspopup="listbox" aria-expanded="false" aria-label="Guide: {name}">{ic}<span class="g-pick-name">{name}</span><svg class="g-pick-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button><div class="g-pick-menu" id="g-pick-menu" role="listbox" aria-label="Choose a guide" hidden>{items}<a class="g-pick-item g-pick-add" href="guides?add=1">+ Add guide…</a></div></div>"#,
+                ic = icon("list"),
+                name = esc(&s.name),
             )
         }
         _ => String::new(),

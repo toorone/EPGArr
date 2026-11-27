@@ -74,9 +74,12 @@
 
   // ---------- layout
 
+  // The guide scrolls inside itself; it fills the rest of the window so the page has no scroll bar.
   function fitHeight() {
     var top = wrap.getBoundingClientRect().top + window.scrollY;
-    wrap.style.height = Math.max(360, window.innerHeight - top - 18) + 'px';
+    var main = wrap.closest('main');
+    var below = main ? parseFloat(getComputedStyle(main).paddingBottom) || 0 : 0;
+    wrap.style.height = Math.max(320, Math.floor(window.innerHeight - top - below - 2)) + 'px';
   }
 
   function buildFrame() {

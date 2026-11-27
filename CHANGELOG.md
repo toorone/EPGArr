@@ -4,6 +4,19 @@ Every change to EPGArr is written down here, newest first. Each release lists
 what was added, changed, fixed and removed, and anything you must do when you
 update.
 
+## 0.4.3 — 2026-11-27
+
+### Fixed
+- TV Guide: the whole page had a scroll bar of its own next to the guide's.
+  The guide now fills the rest of the window exactly and scrolls inside
+  itself.
+- TV Guide: the guide picker was the browser's own drop-down (system font,
+  white list, light-blue highlight). It is now a menu in EPGArr's style: the
+  current guide is ticked, guides that are turned off are marked "off", and
+  "+ Add guide…" opens the add dialog. Works with the keyboard too.
+- TV Guide: a guide that is built but has no programmes from today on no longer
+  says it "has not been built yet".
+
 ## 0.4.2 — 2026-11-27
 
 ### Removed
