@@ -28,6 +28,7 @@ mod timeutil;
 mod tmdb;
 mod tvlogos;
 mod tvmaze;
+mod web;
 mod xmltv;
 
 use anyhow::{bail, Context, Result};
@@ -178,6 +179,12 @@ struct Cli {
     /// build / check: only this guide (its slug, e.g. main); default: every enabled guide
     #[arg(long, global = true)]
     guide: Option<String>,
+    /// serve: address to listen on
+    #[arg(long, global = true, env = "EPGARR_LISTEN", default_value = "0.0.0.0:80")]
+    listen: String,
+    /// serve: folder with the static files (app.css, guide.js, ...)
+    #[arg(long, global = true, env = "EPGARR_ASSETS", default_value = "/app/assets")]
+    assets: PathBuf,
     #[command(subcommand)]
     command: Option<Cmd>,
 }
@@ -196,6 +203,8 @@ enum Cmd {
     Check,
     /// Print the version and the database schema version this binary expects, as JSON
     Info,
+    /// Run the EPGArr web pages and the scheduler (watch) in one process
+    Serve,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -394,6 +403,42 @@ async fn main() -> ExitCode {
             }
         }
         Cmd::Watch => watch(&conn, &data_dir, output_dir.as_deref(), opts).await,
+        Cmd::Serve => {
+            // Guides and custom logos go to the output dir (default: the data dir).
+            let out = output_dir.clone().unwrap_or_else(|| data_dir.clone());
+            // The scheduler runs on its own thread with its own database connection.
+            let (d, o) = (data_dir.clone(), out.clone());
+            std::thread::spawn(move || {
+                let rt = match tokio::runtime::Builder::new_current_thread().enable_all().build() {
+                    Ok(rt) => rt,
+                    Err(e) => {
+                        eprintln!("error: could not start the scheduler: {e}");
+                        return;
+                    }
+                };
+                rt.block_on(async move {
+                    match open_data_dir(&d) {
+                        Ok(conn) => {
+                            watch(&conn, &d, Some(o.as_path()), opts).await;
+                        }
+                        Err(e) => eprintln!("error: scheduler: {e:#}"),
+                    }
+                });
+            });
+            let app = std::sync::Arc::new(web::App {
+                data_dir: data_dir.clone(),
+                output_dir: out,
+                assets: cli.assets.clone(),
+                sessions: std::sync::Mutex::new(HashMap::new()),
+            });
+            match web::serve(app, &cli.listen).await {
+                Ok(()) => ExitCode::SUCCESS,
+                Err(e) => {
+                    eprintln!("error: {e:#}");
+                    ExitCode::FAILURE
+                }
+            }
+        }
     }
 }
 

@@ -10,7 +10,7 @@ COPY epg-loader/Cargo.toml epg-loader/Cargo.lock ./
 COPY epg-loader/rules.toml ./
 COPY epg-loader/src ./src
 COPY epg-loader/tests ./tests
-RUN cargo build --release --locked
+RUN cargo build --release
 
 # ---- the app -----------------------------------------------------------------
 FROM php:8.3-fpm-alpine
