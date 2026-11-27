@@ -44,6 +44,7 @@ pub fn icon(name: &str) -> String {
         "search" => r#"<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>"#,
         "x" => r#"<path d="M18 6 6 18M6 6l12 12"/>"#,
         "user" => r#"<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>"#,
+        "logout" => r#"<path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M15 12H3"/>"#,
         _ => "",
     };
     format!(
@@ -91,9 +92,11 @@ pub fn page(ctx: &Ctx, active: &str, title: &str, tools: &str, body: &str) -> St
     let user = esc(ctx.user.as_deref().unwrap_or(""));
     let nav_auth = if ctx.user.is_some() {
         format!(
-            r#"<form method="post" action="logout" class="nav-auth">{csrf}<button type="submit" class="item" title="Log out {user}" aria-label="Log out {user}">{icon}<span class="label"><span class="nav-user">{user}</span><small>Log out</small></span></button></form>"#,
+            r#"<div class="nav-account"><span class="nav-avatar">{avatar}</span><span class="nav-who"><span class="nav-user" title="{user}">{user}</span><small>Signed in</small></span><form method="post" action="logout" class="nav-logout-form">{csrf}<button type="submit" class="nav-logout" title="Log out" aria-label="Log out {user}">{out}</button></form></div>{version}"#,
+            avatar = icon("user"),
+            out = icon("logout"),
             csrf = csrf_field(ctx),
-            icon = icon("user"),
+            version = version_line(),
         )
     } else {
         String::new()
@@ -116,6 +119,20 @@ pub fn page(ctx: &Ctx, active: &str, title: &str, tools: &str, body: &str) -> St
         busy = if ctx.user.is_some() { BUSY_SCRIPT } else { "" },
     )
 }
+
+/// "EPGArr v0.3.0" at the bottom of the menu; it lights up when GitHub has a newer version.
+fn version_line() -> String {
+    let mine = env!("CARGO_PKG_VERSION");
+    match super::newer_version() {
+        Some(v) => format!(
+            r#"<a class="nav-version update" href="{CHANGELOG_URL}" target="_blank" rel="noopener" title="Version {v} is available on GitHub. Update with: docker compose pull, then docker compose up -d"><span>v{mine}</span><span class="nav-new">v{v} available</span></a>"#,
+            v = esc(&v),
+        ),
+        None => format!(r#"<a class="nav-version" href="{CHANGELOG_URL}" target="_blank" rel="noopener" title="What is new">{APP_NAME} v{mine}</a>"#),
+    }
+}
+
+const CHANGELOG_URL: &str = "https://github.com/toorone/EPGArr/blob/main/CHANGELOG.md";
 
 /// Lights up the Activity menu item while a build, test or background lookup runs.
 const BUSY_SCRIPT: &str = r#"<script>(function(){var a=document.getElementById('nav-activity');if(!a)return;var t;function check(){fetch('api/busy',{credentials:'same-origin',cache:'no-store'}).then(function(r){return r.json();}).then(function(j){a.classList.toggle('running',!!j.busy);a.title=j.busy?('Activity: '+j.what+' running'):'Activity';}).catch(function(){}).then(function(){clearTimeout(t);t=setTimeout(check,document.hidden?30000:4000);});}check();document.addEventListener('visibilitychange',function(){if(!document.hidden)check();});})();</script>"#;

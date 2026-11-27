@@ -468,7 +468,9 @@ pub async fn page_get(State(app): State<Shared>, headers: HeaderMap, Query(q): Q
 <section class="card set-panel" id="advanced"><h2>Advanced</h2>
 <h3 class="adv-h">Program</h3>
 <dl><dt>Version</dt><dd>EPGArr {version} (Docker image)</dd><dt>Database schema</dt><dd>{schema}</dd></dl>
-<p class="hint">To update, pull or build the new image and recreate the container; your data in /data stays.</p>
+<p class="hint">To update: docker compose pull, then docker compose up -d. Your data in /data stays.</p>
+<label class="check"><input type="checkbox" name="update_check" value="1"{c_update}> Check GitHub for new versions</label>
+<p class="hint">Every 6 hours. When a newer version is out, the version at the bottom of the menu lights up. Only the version number is fetched; nothing is sent.</p>
 <details class="adv-checks" id="adv-checks"{open}><summary>System checks · <span class="{bad_cls}">{bad_text}</span></summary><ul class="adv-check-list">{check_items}</ul></details>
 <h3 class="adv-h">Folders in the container</h3>
 <dl><dt>Data volume</dt><dd><code>{data_dir}</code></dd><dt>Guide files</dt><dd><code>{guide_dir}</code></dd><dt>Program</dt><dd><code>{program}</code></dd></dl>
@@ -487,6 +489,7 @@ pub async fn page_get(State(app): State<Shared>, headers: HeaderMap, Query(q): Q
         c_sports = checked(on("sportsdb", "1", "0")),
         sportsdb_key = esc(&v("sportsdb_key", "")),
         c_logo = checked(on("logo_source", "iptv-org", "off")),
+        c_update = checked(on("update_check", "1", "0")),
         logo_country = esc(&v("logo_country", "us")),
         refresh_hours = esc(&v("refresh_hours", "6")),
         keep = BACKUP_KEEP,
@@ -584,7 +587,7 @@ fn save_settings(app: &Shared, ctx: &Ctx, f: &Posted) -> Response {
     }
     kv.push(("refresh_hours", hours.map_or("6".into(), |h| h.to_string())));
     kv.push(("logo_source", if f.has("logo_source") { "iptv-org" } else { "off" }.into()));
-    for k in ["tmdb_background", "imdb_ratings", "tvmaze", "sportsdb"] {
+    for k in ["tmdb_background", "imdb_ratings", "tvmaze", "sportsdb", "update_check"] {
         kv.push((k, if f.has(k) { "1" } else { "0" }.into()));
     }
     let sk = f.get("sportsdb_key").trim().to_string();

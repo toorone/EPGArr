@@ -295,6 +295,48 @@ async fn logo_files(State(app): State<Shared>, UrlPath(rel): UrlPath<String>) ->
 /// Is the scheduler (the watch loop started by `serve`) running?
 pub static SCHEDULER_RUNNING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
+/// The newest version on GitHub (main), checked every 6 hours when the update check is on.
+pub static LATEST_VERSION: Mutex<Option<String>> = Mutex::new(None);
+
+const LATEST_URL: &str = "https://raw.githubusercontent.com/toorone/EPGArr/main/epg-loader/Cargo.toml";
+
+/// "0.3.10" -> [0, 3, 10]
+fn version_parts(v: &str) -> Vec<u64> {
+    v.trim().trim_start_matches('v').split('.').map(|p| p.parse().unwrap_or(0)).collect()
+}
+
+/// The version on GitHub when it is newer than this program, else None.
+pub fn newer_version() -> Option<String> {
+    let latest = LATEST_VERSION.lock().unwrap().clone()?;
+    (version_parts(&latest) > version_parts(env!("CARGO_PKG_VERSION"))).then_some(latest)
+}
+
+/// Ask GitHub for the version of the program on main.
+async fn check_latest(app: &Shared) {
+    let on = common::settings(app).get("update_check").map_or(true, |v| v != "0");
+    if !on {
+        *LATEST_VERSION.lock().unwrap() = None;
+        return;
+    }
+    let client = match reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(20))
+        .user_agent(concat!("EPGArr/", env!("CARGO_PKG_VERSION")))
+        .build()
+    {
+        Ok(c) => c,
+        Err(_) => return,
+    };
+    let Ok(r) = client.get(LATEST_URL).send().await else { return };
+    let Ok(r) = r.error_for_status() else { return };
+    let Ok(text) = r.text().await else { return };
+    let v = text
+        .lines()
+        .find_map(|l| l.trim().strip_prefix("version").map(|r| r.trim_start_matches([' ', '=']).trim_matches('"').to_string()));
+    if let Some(v) = v.filter(|v| !v.is_empty() && v.chars().all(|c| c.is_ascii_digit() || c == '.')) {
+        *LATEST_VERSION.lock().unwrap() = Some(v);
+    }
+}
+
 /// An uploaded file: (file name, bytes).
 pub type Upload = (String, Vec<u8>);
 
@@ -384,6 +426,14 @@ pub fn router(app: Shared) -> Router {
 /// Run the web server on `addr` until the process ends.
 pub async fn serve(app: Shared, addr: &str) -> anyhow::Result<()> {
     let listener = tokio::net::TcpListener::bind(addr).await?;
+    // Look for a new version on GitHub now and every 6 hours.
+    let a = app.clone();
+    tokio::spawn(async move {
+        loop {
+            check_latest(&a).await;
+            tokio::time::sleep(std::time::Duration::from_secs(6 * 3600)).await;
+        }
+    });
     // A backup every day (and one at start-up when the last is a day old).
     let a = app.clone();
     tokio::spawn(async move {
@@ -396,4 +446,16 @@ pub async fn serve(app: Shared, addr: &str) -> anyhow::Result<()> {
     println!("EPGArr pages on http://{addr}");
     axum::serve(listener, router(app)).await?;
     Ok(())
+}
+
+#[cfg(test)]
+mod version_tests {
+    use super::*;
+
+    #[test]
+    fn compares_versions() {
+        assert!(version_parts("0.3.10") > version_parts("0.3.9"));
+        assert!(version_parts("1.0.0") > version_parts("0.9.9"));
+        assert!(version_parts("0.3.0") <= version_parts("0.3.0"));
+    }
 }

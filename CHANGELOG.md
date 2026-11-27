@@ -4,9 +4,12 @@ Every change to EPGArr is written down here, newest first. Each release lists
 what was added, changed, fixed and removed, and anything you must do when you
 update.
 
-## Unreleased
+## 0.3.0 — 2026-11-27
 
 ### Changed
+- The signed-in user and Log out at the bottom of the menu are laid out
+  properly: an avatar, the name with "Signed in" under it, and a separate
+  Log out button on the right.
 - Menu: Dashboard, TV Guide, Activity, Settings. **Guides moved into
   Settings**: it is the first section in Settings' list (still at `/guides`),
   next to Artwork & info, Channel logos, Schedule, Users, Backups and Advanced.
@@ -20,6 +23,11 @@ update.
   instead of building from the source).
 
 ### Added
+- The version (e.g. `EPGArr v0.3.0`) is shown at the bottom of the menu and
+  links to this changelog. When GitHub has a newer version it lights up green
+  with "v… available". The check runs every 6 hours and can be turned off in
+  Settings › Advanced ("Check GitHub for new versions"); it only fetches the
+  version number from GitHub.
 - The **Activity** menu item lights up (green, glowing, with a dot) while a
   guide build, source test or background lookup is running, and goes back to
   normal when it finishes. It checks every few seconds (`/api/busy`).
