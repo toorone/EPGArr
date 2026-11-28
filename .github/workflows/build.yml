@@ -74,7 +74,8 @@ jobs:
           sleep 2
           test "$(stat -c %u:%g data)" = "1234:1234" || fail "data is owned by $(stat -c %u:%g data), not 1234:1234"
           test "$(stat -c %u data/epg.db)" = "1234" || fail "epg.db is owned by $(stat -c %u data/epg.db)"
-          docker top epgtest -eo uid,comm | grep -qE '^ *1234 +epg-loader' || fail "epg-loader is not running as 1234: $(docker top epgtest -eo uid,comm | tr -s '[:space:]' ' ')"
+          owner=$(docker exec epgtest sh -c 'for p in /proc/[0-9]*; do [ "$(cat $p/comm 2>/dev/null)" = epg-loader ] && stat -c %u "$p"; done' | sort -u | tr -s '[:space:]' ' ')
+          test "$owner" = "1234 " || fail "epg-loader runs as: [$owner]"
           grep -qE '^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9:]{8}  EPGArr pages on' data/logs/epgarr.log || fail "logs/epgarr.log has no time-stamped start line: $(head -c 300 data/logs/epgarr.log 2>&1)"
           docker logs epgtest 2>&1 | grep -qE '^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9:]{8}  EPGArr pages on' || fail "docker logs has no time-stamped start line"
           docker stop -t 15 epgtest
