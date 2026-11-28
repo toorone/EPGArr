@@ -156,6 +156,65 @@
           setTimeout(poll, 1500);
         }).catch(function (e) { done('bad-text', 'Could not start the test: ' + (e && e.message ? e.message : 'no connection to EPGArr') + '.'); });
       });
+      // Public guides: pick one and its address (and a name) are filled in.
+      (function () {
+        var openBtn = $('g-presets-open'), box = $('g-presets'), prov = $('g-prov'), list = $('g-plist'), filter = $('g-pfilter'), pmsg = $('g-pmsg');
+        if (!openBtn) return;
+        var items = [], provName = '';
+        function show() {
+          var q = filter.value.trim().toLowerCase();
+          list.textContent = '';
+          var shown = items.filter(function (r) { return !q || r.name.toLowerCase().indexOf(q) >= 0 || r.url.toLowerCase().indexOf(q) >= 0; });
+          shown.forEach(function (r) {
+            var b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'g-pitem';
+            b.setAttribute('role', 'option');
+            var n = document.createElement('strong'); n.textContent = r.name;
+            var u = document.createElement('span'); u.textContent = r.url.replace(/^https?:\/\//, '');
+            b.appendChild(n); b.appendChild(u);
+            b.addEventListener('click', function () {
+              $('g-src').value = r.url;
+              if (!$('g-name').value.trim()) { $('g-name').value = r.name; $('g-name').dispatchEvent(new Event('input')); }
+              box.hidden = true;
+              openBtn.setAttribute('aria-expanded', 'false');
+              $('g-test-out').className = 'hint';
+              $('g-test-out').textContent = 'Filled in from ' + provName + '. Press Test source to check it.';
+            });
+            list.appendChild(b);
+          });
+          pmsg.textContent = items.length ? shown.length + ' of ' + items.length + ' guides from ' + provName + '.' : pmsg.textContent;
+        }
+        function load(p, btn) {
+          prov.querySelectorAll('button').forEach(function (x) { x.classList.toggle('on', x === btn); });
+          items = []; list.textContent = ''; provName = p.name;
+          pmsg.textContent = 'Loading the list from ' + p.name + '…';
+          fetch('api/presets?provider=' + encodeURIComponent(p.id), { credentials: 'same-origin', cache: 'no-store' })
+            .then(function (r) { return r.json(); })
+            .then(function (j) {
+              if (j.error) { pmsg.textContent = j.error; return; }
+              items = j.results; show();
+            })
+            .catch(function () { pmsg.textContent = 'Could not load the list. Try again.'; });
+        }
+        openBtn.addEventListener('click', function () {
+          box.hidden = !box.hidden;
+          openBtn.setAttribute('aria-expanded', box.hidden ? 'false' : 'true');
+          if (box.hidden || prov.childNodes.length) return;
+          fetch('api/presets', { credentials: 'same-origin', cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (j) {
+            (j.providers || []).forEach(function (p, i) {
+              var b = document.createElement('button');
+              b.type = 'button';
+              b.textContent = p.name;
+              b.addEventListener('click', function () { load(p, b); });
+              prov.appendChild(b);
+              if (i === 0) load(p, b);
+            });
+          });
+        });
+        filter.addEventListener('input', show);
+        filter.addEventListener('keydown', function (e) { if (e.key === 'Enter') e.preventDefault(); });
+      })();
       if (window.EPG_OPEN_GUIDE) { open(window.EPG_OPEN_GUIDE); }
       // XML | GZ switch next to each guide address; the choice is remembered.
       var fmtKey = 'epg-url-format';

@@ -857,3 +857,15 @@ main.page-guide { padding-bottom: 1rem; }
 .logo-hit span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-transform: capitalize; }
 .logo-hit:hover { border-color: var(--accent); color: var(--text); filter: none; }
 .logo-hit.on { border-color: var(--accent); background: var(--accent-soft); color: var(--text); box-shadow: 0 0 0 1px var(--accent); }
+
+/* Add guide: pick a public guide */
+.g-presets { margin: -0.2rem 0 0.8rem; }
+.g-presets-open { margin: 0; padding: 0.2rem 0.1rem; color: var(--accent); background: transparent; border: 0; box-shadow: none; font-size: 0.85rem; }
+.g-presets-open:hover { text-decoration: underline; filter: none; }
+.g-presets-box { margin-top: 0.5rem; padding: 0.75rem; border: 1px solid var(--line); border-radius: 10px; background: #0f1115; }
+.g-presets-box .tm-kind { margin-bottom: 0.6rem; }
+.g-presets-box .tm-kind button { height: 30px; }
+.g-plist { display: grid; gap: 0.3rem; max-height: 240px; overflow-y: auto; margin-top: 0.5rem; }
+.g-pitem { display: flex; flex-direction: column; align-items: flex-start; gap: 0.1rem; width: 100%; margin: 0; padding: 0.45rem 0.6rem; border: 1px solid var(--line); border-radius: 8px; background: transparent; box-shadow: none; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.g-pitem span { font-size: 0.75rem; color: var(--muted); word-break: break-all; }
+.g-pitem:hover { border-color: var(--accent); background: var(--accent-soft); filter: none; }

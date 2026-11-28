@@ -4,6 +4,18 @@ Every change to EPGArr is written down here, newest first. Each release lists
 what was added, changed, fixed and removed, and anything you must do when you
 update.
 
+## 0.7.1 — 2026-11-28
+
+### Added
+- **Pick a public guide** when adding a guide: "Or pick a public guide…" under
+  the source address lists the guides of
+  [epgshare01](https://epgshare01.online/epgshare01/),
+  [iptv-epg.org](https://iptv-epg.org/guides) and [epg.guru](https://epg.guru/)
+  (its 7-day IPTV guides). Filter the list (e.g. "United States"), click one,
+  and the source address and a name are filled in. The lists are read from the
+  sites themselves (kept for 12 hours), so new guides there show up by
+  themselves.
+
 ## 0.7.0 — 2026-11-28: sorting and logo search
 
 ### Added
