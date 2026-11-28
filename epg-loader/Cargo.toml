@@ -1,6 +1,6 @@
 [package]
 name = "epg-loader"
-version = "0.6.2"
+version = "0.6.3"
 edition = "2021"
 description = "Enriches an XMLTV guide with channel logos, TMDB posters, ratings and categories for Emby"
 publish = false
@@ -30,6 +30,10 @@ base64 = "0.22"
 # Local times on the pages (uses TZ and the system time zone database).
 jiff = "0.2"
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp", "gif"] }
+
+[target.'cfg(unix)'.dependencies]
+# One log for everything (see web/logfile.rs).
+libc = "0.2"
 
 [profile.release]
 strip = true

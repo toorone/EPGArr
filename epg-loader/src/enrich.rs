@@ -12,7 +12,6 @@ use anyhow::{bail, Context, Result};
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::fs::File;
 use std::path::Path;
 use std::process::{Command, Stdio};
 use std::sync::atomic::Ordering;
@@ -159,29 +158,25 @@ pub fn maybe_spawn(conn: &Connection, cfg: &Config, data_dir: &Path, output_dir:
         _ => return,
     }
     match spawn(data_dir, output_dir) {
-        Ok(()) => println!("Started background TMDB lookups (see logs/enrich.log)"),
+        Ok(()) => println!("▶ Background TMDB lookups: started"),
         Err(e) => eprintln!("warning: could not start background TMDB lookups: {e:#}"),
     }
 }
 
 fn spawn(data_dir: &Path, output_dir: Option<&Path>) -> Result<()> {
     let exe = std::env::current_exe().context("finding this program")?;
-    let logs = data_dir.join("logs");
-    std::fs::create_dir_all(&logs).with_context(|| format!("creating {}", logs.display()))?;
-    let log = File::create(logs.join("enrich.log")).context("creating logs/enrich.log")?;
     let mut cmd = Command::new(exe);
     cmd.arg("--data-dir").arg(data_dir);
     if let Some(o) = output_dir {
         cmd.arg("--output-dir").arg(o);
     }
-    cmd.arg("enrich").stdin(Stdio::null()).stdout(log.try_clone()?).stderr(log);
-    #[cfg(unix)]
-    {
-        use std::os::unix::process::CommandExt;
-        // Its own process group, so it keeps running after the schedule's process exits.
-        cmd.process_group(0);
-    }
-    cmd.spawn().context("starting epg-loader enrich")?;
+    // Its output goes to the one log, like everything else (see web/logfile.rs).
+    cmd.arg("enrich").stdin(Stdio::null()).stdout(Stdio::inherit()).stderr(Stdio::inherit());
+    let mut child = cmd.spawn().context("starting epg-loader enrich")?;
+    // Reap it when it ends so no zombie is left behind.
+    std::thread::spawn(move || {
+        let _ = child.wait();
+    });
     Ok(())
 }
 

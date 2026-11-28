@@ -68,10 +68,6 @@
         var busy = d.build_running || d.job !== '';
         $('act-build-text').textContent = d.build_running ? 'A guide build is running now.' : (d.job ? d.job + ' is running.' : 'No guide build is running.');
         $('act-build-cancel').hidden = !busy;
-        var blog = $('act-build-log');
-        var bEnd = blog.scrollTop + blog.clientHeight >= blog.scrollHeight - 30;
-        blog.textContent = d.build_log || 'No guide build has been started from these pages yet.';
-        if (bEnd) blog.scrollTop = blog.scrollHeight;
         $('act-build-start').hidden = busy;
         document.querySelectorAll('.act-gbuild button').forEach(function (b) { if (!b.dataset.off) { b.dataset.off = b.disabled ? '1' : '0'; } b.disabled = busy || b.dataset.off === '1'; });
       }

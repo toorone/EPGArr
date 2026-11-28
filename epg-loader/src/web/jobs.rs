@@ -61,10 +61,6 @@ pub fn resume(app: &Shared) {
     }
 }
 
-pub fn logs_dir(app: &App) -> PathBuf {
-    app.data_dir.join("logs")
-}
-
 /// Is `<data dir>/<name>` locked by a running build or lookup (in this or another process)?
 pub fn lock_held(dir: &Path, name: &str) -> bool {
     match crate::acquire_named_lock(dir, name) {
@@ -86,30 +82,19 @@ fn program() -> PathBuf {
     std::env::current_exe().unwrap_or_else(|_| PathBuf::from("epg-loader"))
 }
 
-/// Start `epg-loader <args>` in the background. Output goes to logs/<name>.log,
-/// or to `stdout_to` (e.g. check.json) with errors in the log. Returns "" or an error.
+/// Start `epg-loader <args>` in the background. Its output goes to the one log
+/// (see logfile.rs), or to `stdout_to` (e.g. check.json) with errors in the log.
+/// Returns "" or an error.
 pub fn start(app: &Shared, name: &str, label: &str, args: &[&str], stdout_to: Option<&Path>) -> String {
     if let Some(j) = app.jobs.running() {
         return format!("{} is still running. Wait for it to finish.", j.label);
     }
-    let logs = logs_dir(app);
-    if let Err(e) = std::fs::create_dir_all(&logs) {
-        return format!("Could not create {}: {e}", logs.display());
-    }
-    let log_path = logs.join(format!("{name}.log"));
-    let log = match std::fs::File::create(&log_path) {
-        Ok(f) => f,
-        Err(e) => return format!("Could not write {}: {e}", log_path.display()),
-    };
     let out: Stdio = match stdout_to {
         Some(p) => match std::fs::File::create(p) {
             Ok(f) => f.into(),
             Err(e) => return format!("Could not write {}: {e}", p.display()),
         },
-        None => match log.try_clone() {
-            Ok(f) => f.into(),
-            Err(e) => return format!("Could not use the log file: {e}"),
-        },
+        None => Stdio::inherit(),
     };
     // A Stop or Cancel left from an earlier run must not stop this one.
     let _ = std::fs::remove_file(app.data_dir.join(crate::CANCEL_FILE));
@@ -121,12 +106,13 @@ pub fn start(app: &Shared, name: &str, label: &str, args: &[&str], stdout_to: Op
         .args(args)
         .stdin(Stdio::null())
         .stdout(out)
-        .stderr(log);
+        .stderr(Stdio::inherit());
     let mut child = match cmd.spawn() {
         Ok(c) => c,
         Err(e) => return format!("Could not start the task: {e}"),
     };
     let pid = child.id().unwrap_or(0);
+    println!("▶ {label}: started from the pages");
     let marker = Marker {
         name: name.to_string(),
         label: label.to_string(),
@@ -143,9 +129,11 @@ pub fn start(app: &Shared, name: &str, label: &str, args: &[&str], stdout_to: Op
         if !SHUTTING_DOWN.load(std::sync::atomic::Ordering::Relaxed) {
             let _ = std::fs::remove_file(app2.data_dir.join(RUNNING_FILE));
         }
-        if let Ok(mut f) = std::fs::OpenOptions::new().append(true).open(&log_path) {
-            use std::io::Write;
-            let _ = write!(f, "\n[finished with exit code {code}]\n");
+        let label = app2.jobs.current.lock().unwrap().as_ref().map(|j| j.label.clone()).unwrap_or_default();
+        if code == 0 {
+            println!("■ {label}: finished");
+        } else {
+            println!("■ {label}: ended with exit code {code}");
         }
         if let Some(j) = app2.jobs.current.lock().unwrap().as_mut() {
             if j.pid == pid {
@@ -271,16 +259,7 @@ pub fn start_enrich(app: &App) -> String {
         return "Background TMDB lookups are already running.".into();
     }
     let _ = std::fs::remove_file(app.data_dir.join(crate::enrich::CANCEL_FILE));
-    let logs = logs_dir(app);
-    let _ = std::fs::create_dir_all(&logs);
-    let log = match std::fs::File::create(logs.join("enrich.log")) {
-        Ok(f) => f,
-        Err(e) => return format!("Could not write the log: {e}"),
-    };
-    let err = match log.try_clone() {
-        Ok(f) => f,
-        Err(e) => return format!("Could not use the log: {e}"),
-    };
+    println!("▶ Background TMDB lookups: started from the pages");
     let r = std::process::Command::new(program())
         .arg("--data-dir")
         .arg(&app.data_dir)
@@ -288,8 +267,8 @@ pub fn start_enrich(app: &App) -> String {
         .arg(&app.output_dir)
         .arg("enrich")
         .stdin(Stdio::null())
-        .stdout(log)
-        .stderr(err)
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit())
         .spawn();
     match r {
         Ok(mut child) => {

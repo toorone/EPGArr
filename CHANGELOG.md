@@ -4,6 +4,23 @@ Every change to EPGArr is written down here, newest first. Each release lists
 what was added, changed, fixed and removed, and anything you must do when you
 update.
 
+## 0.6.3 — 2026-11-28
+
+### Changed
+- **One log for everything.** The Activity page has a single **Log** instead of
+  a separate background-lookups log and guide-build log. It shows everything
+  EPGArr does, with the date and time on every line: guide builds (scheduled
+  and started from the pages), source tests, background lookups, start-up,
+  shutdown and warnings. The same lines go to `docker logs epgarr` and to
+  `logs/epgarr.log` in the data folder (kept to 5 MB, the previous one as
+  `epgarr.log.1`).
+- The background lookups now also get `docker stop`, so they save their work
+  before the container stops.
+
+### Removed
+- The separate `logs/guide-build.log`, `logs/check*.log` and
+  `logs/enrich.log` files.
+
 ## 0.6.2 — 2026-11-28
 
 ### Added

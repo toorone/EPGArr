@@ -397,6 +397,8 @@ async fn main() -> ExitCode {
         }
         Cmd::Watch => watch(&conn, &data_dir, output_dir.as_deref(), opts).await,
         Cmd::Serve => {
+            // Everything from here on (and from every task started) goes to one log.
+            web::logfile::capture(&data_dir);
             // Guides and custom logos go to the output dir (default: the data dir).
             let out = output_dir.clone().unwrap_or_else(|| data_dir.clone());
             // The scheduler runs on its own thread with its own database connection.

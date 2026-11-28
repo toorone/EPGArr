@@ -426,7 +426,7 @@ dependencies = [
 
 [[package]]
 name = "epg-loader"
-version = "0.6.2"
+version = "0.6.3"
 dependencies = [
  "anyhow",
  "axum",
@@ -436,6 +436,7 @@ dependencies = [
  "flate2",
  "image",
  "jiff",
+ "libc",
  "quick-xml",
  "reqwest",
  "rusqlite",

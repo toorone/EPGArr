@@ -12,6 +12,7 @@ pub mod dash;
 pub mod guides;
 pub mod html;
 pub mod jobs;
+pub mod logfile;
 pub mod logo;
 pub mod settings;
 pub mod tmdbapi;
