@@ -868,3 +868,9 @@ main.page-guide { padding-bottom: 1rem; }
 .g-pitem { display: flex; flex-direction: column; align-items: flex-start; gap: 0.1rem; width: 100%; margin: 0; padding: 0.45rem 0.6rem; border: 1px solid var(--line); border-radius: 8px; background: transparent; box-shadow: none; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
 .g-pitem span { font-size: 0.75rem; color: var(--muted); word-break: break-all; }
 .g-pitem:hover { border-color: var(--accent); background: var(--accent-soft); filter: none; }
+
+/* TV Guide: copy the guide's address */
+.g-copy-addr { display: inline-flex; align-items: center; gap: 0.4rem; height: var(--ctl-h); margin: 0 0 0 0.4rem; padding: 0 0.8rem; border-radius: 999px; border: 1px solid rgba(255, 255, 255, 0.1); background: #0f1115; box-shadow: none; color: var(--text); font: inherit; font-size: 0.85rem; font-weight: 500; white-space: nowrap; cursor: pointer; }
+.g-copy-addr:hover { border-color: var(--accent); filter: none; }
+.g-copy-addr svg { width: 15px; height: 15px; color: var(--accent); }
+.g-pick { display: inline-flex; align-items: center; }

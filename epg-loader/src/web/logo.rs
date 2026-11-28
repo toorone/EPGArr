@@ -206,6 +206,9 @@ pub async fn info(State(app): State<Shared>, headers: HeaderMap, Query(q): Query
     if ctx.user.is_none() {
         return json(&ctx, StatusCode::UNAUTHORIZED, json!({ "error": "Log in first." }));
     }
+    if !ctx.admin {
+        return json(&ctx, StatusCode::FORBIDDEN, json!({ "error": "Only admins can do that." }));
+    }
     let channel = q.get("channel").cloned().unwrap_or_default();
     if !valid_channel(&channel) {
         return json(&ctx, StatusCode::BAD_REQUEST, json!({ "error": "Which channel?" }));
@@ -227,6 +230,9 @@ pub async fn post(State(app): State<Shared>, headers: HeaderMap, req: Request) -
     let ctx = app.ctx(&headers);
     if ctx.user.is_none() {
         return json(&ctx, StatusCode::UNAUTHORIZED, json!({ "error": "Log in first." }));
+    }
+    if !ctx.admin {
+        return json(&ctx, StatusCode::FORBIDDEN, json!({ "error": "Only admins can do that." }));
     }
     let (f, files) = read_post(req, MAX_BYTES).await;
     if f.get("csrf") != ctx.csrf {

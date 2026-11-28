@@ -191,6 +191,9 @@ pub async fn get(State(app): State<Shared>, headers: HeaderMap, axum::extract::Q
     if ctx.user.is_none() {
         return json(&ctx, StatusCode::UNAUTHORIZED, json!({ "error": "Log in first." }));
     }
+    if !ctx.admin {
+        return json(&ctx, StatusCode::FORBIDDEN, json!({ "error": "Only admins can do that." }));
+    }
     let Some(p) = PROVIDERS.iter().find(|p| q.get("provider").is_some_and(|x| x == p.id)) else {
         let list: Vec<Value> = PROVIDERS.iter().map(|p| json!({ "id": p.id, "name": p.name, "page": p.page })).collect();
         return json(&ctx, StatusCode::OK, json!({ "providers": list }));

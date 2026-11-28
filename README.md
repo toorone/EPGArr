@@ -44,6 +44,10 @@ Open `http://<server>:8080`, create your account, then add a guide on the **Guid
 
 Everything that matters is in `./data`. The program runs as its own `epgarr` user with the ids you give in `PUID` and `PGID` (default 1000:1000), so the files in `./data` belong to you on the host. Run `id` on the host to see your ids.
 
+## Users
+
+Settings › Users: **admins** can change everything; **viewers** only get the TV Guide (read-only, with a button to copy a guide's address for their media server).
+
 ## Update
 
 ```bash

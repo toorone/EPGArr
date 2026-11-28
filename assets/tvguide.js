@@ -11,6 +11,30 @@
     try { if (window.EPG_GUIDE) localStorage.setItem('epg-guide', window.EPG_GUIDE); } catch (e) {}
   })();
 
+  // "Copy address": the guide's address, for a media server.
+  (function () {
+    var b = document.getElementById('g-copy-addr');
+    if (!b) return;
+    b.addEventListener('click', function () {
+      var url = b.dataset.url, label = b.querySelector('span');
+      var done = function (ok) {
+        label.textContent = ok ? 'Copied' : url;
+        setTimeout(function () { label.textContent = 'Copy address'; }, ok ? 1600 : 8000);
+      };
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(url).then(function () { done(true); }, function () { done(false); });
+      } else {
+        var t = document.createElement('textarea');
+        t.value = url; t.style.position = 'fixed'; t.style.opacity = '0';
+        document.body.appendChild(t); t.select();
+        var ok = false;
+        try { ok = document.execCommand('copy'); } catch (e) {}
+        t.remove();
+        done(ok);
+      }
+    });
+  })();
+
   // Guide picker: a small menu in the app's own style.
   (function () {
     var btn = document.getElementById('g-pick-btn'), menu = document.getElementById('g-pick-menu');

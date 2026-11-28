@@ -85,6 +85,9 @@ pub async fn get(State(app): State<Shared>, headers: HeaderMap, Query(q): Query<
     if ctx.user.is_none() {
         return json(&ctx, StatusCode::UNAUTHORIZED, json!({ "error": "Log in first." }));
     }
+    if !ctx.admin {
+        return json(&ctx, StatusCode::FORBIDDEN, json!({ "error": "Only admins can do that." }));
+    }
     let conn = match app.db() {
         Ok(c) => c,
         Err(e) => return json(&ctx, StatusCode::INTERNAL_SERVER_ERROR, json!({ "error": format!("{e:#}") })),
@@ -111,6 +114,9 @@ pub async fn post(State(app): State<Shared>, headers: HeaderMap, req: Request) -
     let ctx = app.ctx(&headers);
     if ctx.user.is_none() {
         return json(&ctx, StatusCode::OK, json!({ "error": "You were logged out. Reload the page and log in again." }));
+    }
+    if !ctx.admin {
+        return json(&ctx, StatusCode::FORBIDDEN, json!({ "error": "Only admins can do that." }));
     }
     let (f, _) = read_post(req, 0).await;
     if f.get("csrf") != ctx.csrf {

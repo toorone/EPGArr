@@ -55,10 +55,15 @@ pub async fn guide_page(State(app): State<Shared>, headers: HeaderMap, Query(q):
         Err(e) => (Vec::new(), format!("{e:#}")),
     };
     let sel = pick_guide(&guides, q.get("guide").map(String::as_str).unwrap_or(""));
-    page_html(&ctx, &guides, sel, &empty)
+    page_html(&ctx, &headers, &guides, sel, &empty)
 }
 
-fn page_html(ctx: &Ctx, guides: &[db::Guide], sel: Option<&db::Guide>, empty: &str) -> Response {
+/// The guide's address for a media server.
+fn guide_addr(headers: &HeaderMap, g: &db::Guide) -> String {
+    super::common::guide_urls(headers, g).0
+}
+
+fn page_html(ctx: &Ctx, headers: &HeaderMap, guides: &[db::Guide], sel: Option<&db::Guide>, empty: &str) -> Response {
     let picker = match sel {
         Some(s) if !guides.is_empty() => {
             let items: String = guides
@@ -76,9 +81,12 @@ fn page_html(ctx: &Ctx, guides: &[db::Guide], sel: Option<&db::Guide>, empty: &s
                 })
                 .collect();
             format!(
-                r#"<div class="g-pick" id="g-pick"><button type="button" class="g-pick-btn" id="g-pick-btn" aria-haspopup="listbox" aria-expanded="false" aria-label="Guide: {name}">{ic}<span class="g-pick-name">{name}</span><svg class="g-pick-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button><div class="g-pick-menu" id="g-pick-menu" role="listbox" aria-label="Choose a guide" hidden>{items}<a class="g-pick-item g-pick-add" href="guides?add=1">+ Add guide…</a></div></div>"#,
+                r#"<div class="g-pick" id="g-pick"><button type="button" class="g-pick-btn" id="g-pick-btn" aria-haspopup="listbox" aria-expanded="false" aria-label="Guide: {name}">{ic}<span class="g-pick-name">{name}</span><svg class="g-pick-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button><div class="g-pick-menu" id="g-pick-menu" role="listbox" aria-label="Choose a guide" hidden>{items}{add}</div></div><button type="button" class="g-copy-addr" id="g-copy-addr" data-url="{addr}" title="Copy this guide's address (for your media server)" aria-label="Copy the guide address">{copy}<span>Copy address</span></button>"#,
                 ic = icon("list"),
                 name = esc(&s.name),
+                add = if ctx.admin { r#"<a class="g-pick-item g-pick-add" href="guides?add=1">+ Add guide…</a>"# } else { "" },
+                addr = esc(&guide_addr(headers, s)),
+                copy = icon("copy"),
             )
         }
         _ => String::new(),
@@ -89,19 +97,20 @@ fn page_html(ctx: &Ctx, guides: &[db::Guide], sel: Option<&db::Guide>, empty: &s
         x = icon("x"),
     );
     let globals = format!(
-        "<script>window.EPG_GUIDE = {};window.EPG_GUIDES = {};</script>",
+        "<script>window.EPG_GUIDE = {};window.EPG_GUIDES = {};window.EPG_ADMIN = {};</script>",
         json_script(&json!(sel.map(|g| g.slug.clone()).unwrap_or_default())),
         json_script(&json!(guides.iter().map(|g| g.slug.clone()).collect::<Vec<_>>())),
+        ctx.admin,
     );
     let v = env!("CARGO_PKG_VERSION");
     let (tools, body) = if !empty.is_empty() {
         (
             format!(r#"<div class="g-tools-top">{picker}</div>"#),
             format!(
-                r#"{globals}<div class="card g-empty"><h2>{g}Nothing to show yet</h2><p class="muted">{m}</p><a class="button" href="guides">{l}Open Guides</a></div><script src="assets/tvguide.js?v={v}"></script>"#,
+                r#"{globals}<div class="card g-empty"><h2>{g}Nothing to show yet</h2><p class="muted">{m}</p>{open}</div><script src="assets/tvguide.js?v={v}"></script>"#,
                 g = icon("grid"),
                 m = esc(empty),
-                l = icon("list"),
+                open = if ctx.admin { format!(r#"<a class="button" href="guides">{}Open Guides</a>"#, icon("list")) } else { String::new() },
             ),
         )
     } else {
@@ -110,7 +119,7 @@ fn page_html(ctx: &Ctx, guides: &[db::Guide], sel: Option<&db::Guide>, empty: &s
             format!(
                 r#"{globals}<div class="g-bar"><div class="g-days"><button type="button" class="secondary" id="g-prev" aria-label="Previous day">&#8249;</button><span id="g-day" class="g-day-label">Today</span><button type="button" class="secondary" id="g-next" aria-label="Next day">&#8250;</button><button type="button" id="g-now">{clock}Now</button></div><div class="g-chips-wrap" id="g-chips-wrap"><button type="button" class="g-scroll-btn" data-dir="-1" aria-label="Scroll groups left" hidden>&#8249;</button><div class="g-chips" id="g-chips" role="group" aria-label="Filter by group"></div><button type="button" class="g-scroll-btn" data-dir="1" aria-label="Scroll groups right" hidden>&#8250;</button></div>{search}</div><div class="g-wrap" id="g-wrap"><div class="g-scroll" id="g-scroll" tabindex="0" aria-label="Programme guide"><div class="g-inner" id="g-inner"><div class="g-head" id="g-head"><div class="g-corner" id="g-count"></div></div><div class="g-body" id="g-body"></div><div class="g-nowline" id="g-nowline" hidden></div></div></div><div class="g-status" id="g-status">Loading the guide…</div></div><aside class="g-panel" id="g-panel" hidden aria-live="polite"><button type="button" class="ghost g-close" id="g-close" aria-label="Close">&times;</button><div id="g-detail"></div></aside>{dialog}<script src="assets/tvguide.js?v={v}"></script><script src="assets/guide.js?v={v}"></script>"#,
                 clock = icon("clock"),
-                dialog = logo_dialog(ctx),
+                dialog = if ctx.admin { logo_dialog(ctx) } else { String::new() },
             ),
         )
     };

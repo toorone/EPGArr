@@ -4,6 +4,25 @@ Every change to EPGArr is written down here, newest first. Each release lists
 what was added, changed, fixed and removed, and anything you must do when you
 update.
 
+## 0.8.0 — 2026-11-28: admins and viewers
+
+### Added
+- **User roles.** Settings › Users now has two kinds of user:
+  - **Admin**: everything, as before.
+  - **Viewer**: read-only. Viewers only see the **TV Guide**: they can browse
+    and search it, open programme details, switch guides and **copy a guide's
+    address** for their media server. They cannot add or change guides, logos
+    or TMDB matches, and have no Dashboard, Activity or Settings. This is
+    enforced by the server, not just hidden.
+  - Pick the role when adding a user; **Make viewer / Make admin** changes it.
+    You cannot change your own role, and the last active admin stays an admin.
+  - The menu shows "Admin" or "Viewer" under the name.
+- TV Guide: a **Copy address** button next to the guide picker copies the
+  guide's address (`/guides/<name>.xml`), for admins and viewers.
+
+### When you update
+- Existing users stay admins.
+
 ## 0.7.2 — 2026-11-28
 
 ### Changed

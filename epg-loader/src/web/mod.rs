@@ -78,6 +78,8 @@ pub type Shared = Arc<App>;
 
 /// What every page needs about the visitor.
 pub struct Ctx {
+    /// Admins can change everything; other users (viewers) only see the TV Guide.
+    pub admin: bool,
     pub sid: String,
     pub new_session: bool,
     pub user: Option<String>,
@@ -108,13 +110,13 @@ impl App {
         let s = sessions.get_mut(&sid).unwrap();
         s.seen = now;
         // The user must still exist, be enabled and have the same password as at login.
-        let user = s.user.clone().filter(|u| {
-            auth::find_user(&self.data_dir, u).is_some_and(|x| !x.disabled && auth::fingerprint(&x.hash) == s.fp)
-        });
+        let found = s.user.as_deref().and_then(|u| auth::find_user(&self.data_dir, u)).filter(|x| !x.disabled && auth::fingerprint(&x.hash) == s.fp);
+        let admin = found.as_ref().is_some_and(|x| x.role == "admin");
+        let user = found.map(|x| x.username);
         if user.is_none() {
             s.user = None;
         }
-        Ctx { sid, new_session, user, csrf: s.csrf.clone(), flashes: std::mem::take(&mut s.flashes) }
+        Ctx { admin, sid, new_session, user, csrf: s.csrf.clone(), flashes: std::mem::take(&mut s.flashes) }
     }
 
     pub fn flash(&self, ctx: &Ctx, kind: &str, msg: impl Into<String>) {
@@ -421,10 +423,15 @@ pub async fn read_post(req: axum::extract::Request, max_file: usize) -> (guides:
     (guides::Posted(fields), files)
 }
 
+/// A viewer (not an admin) asked for an admin page: the TV Guide is theirs.
+pub fn viewer_home(ctx: &Ctx) -> Response {
+    redirect(ctx, "tv")
+}
+
 /// Is anything running? For the Activity menu item's light.
 async fn busy(State(app): State<Shared>, headers: HeaderMap) -> Response {
     let ctx = app.ctx(&headers);
-    if ctx.user.is_none() {
+    if ctx.user.is_none() || !ctx.admin {
         return json(&ctx, StatusCode::UNAUTHORIZED, serde_json::json!({ "busy": false }));
     }
     let mut what: Vec<String> = Vec::new();

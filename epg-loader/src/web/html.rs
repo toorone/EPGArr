@@ -93,8 +93,9 @@ pub fn page(ctx: &Ctx, active: &str, title: &str, tools: &str, body: &str) -> St
     let user = esc(ctx.user.as_deref().unwrap_or(""));
     let nav_auth = if ctx.user.is_some() {
         format!(
-            r#"<div class="nav-account"><span class="nav-avatar">{avatar}</span><span class="nav-who"><span class="nav-user" title="{user}">{user}</span><small>Signed in</small></span><form method="post" action="logout" class="nav-logout-form">{csrf}<button type="submit" class="nav-logout" title="Log out" aria-label="Log out {user}">{out}</button></form></div>{version}"#,
+            r#"<div class="nav-account"><span class="nav-avatar">{avatar}</span><span class="nav-who"><span class="nav-user" title="{user}">{user}</span><small>{role}</small></span><form method="post" action="logout" class="nav-logout-form">{csrf}<button type="submit" class="nav-logout" title="Log out" aria-label="Log out {user}">{out}</button></form></div>{version}"#,
             avatar = icon("user"),
+            role = if ctx.admin { "Admin" } else { "Viewer" },
             out = icon("logout"),
             csrf = csrf_field(ctx),
             version = version_line(),
@@ -108,17 +109,25 @@ pub fn page(ctx: &Ctx, active: &str, title: &str, tools: &str, body: &str) -> St
         format!(r#"<div class="page-head page-tools">{tools}</div>"#)
     };
     format!(
-        r#"{head}<body><div class="layout"><nav class="nav" aria-label="Main"><div class="brand"><span class="brand-mark">{logo}</span><span>{APP_NAME}</span></div>{a}{b}{c}{d}<div class="nav-spacer"></div>{nav_auth}</nav><div class="content">{top}<main class="page-{active}{wide}">{fl}{body}</main></div></div>{busy}</body></html>"#,
+        r#"{head}<body><div class="layout"><nav class="nav" aria-label="Main"><div class="brand"><span class="brand-mark">{logo}</span><span>{APP_NAME}</span></div>{items}<div class="nav-spacer"></div>{nav_auth}</nav><div class="content">{top}<main class="page-{active}{wide}">{fl}{body}</main></div></div>{busy}</body></html>"#,
         head = head(title),
         logo = icon("logo"),
-        a = item("dashboard", "./", "Dashboard", "dashboard"),
-        b = item("guide", "tv", "TV Guide", "grid"),
-        c = item("activity", "activity", "Activity", "pulse").replacen("<a class=\"item", "<a id=\"nav-activity\" class=\"item", 1),
-        // Settings opens on its first section, Guides.
-        d = item("settings", "guides", "Settings", "settings"),
+        // Viewers (users who are not admins) only have the TV Guide.
+        items = if ctx.admin {
+            [
+                item("dashboard", "./", "Dashboard", "dashboard"),
+                item("guide", "tv", "TV Guide", "grid"),
+                item("activity", "activity", "Activity", "pulse").replacen("<a class=\"item", "<a id=\"nav-activity\" class=\"item", 1),
+                // Settings opens on its first section, Guides.
+                item("settings", "guides", "Settings", "settings"),
+            ]
+            .concat()
+        } else {
+            item("guide", "tv", "TV Guide", "grid")
+        },
         wide = if active == "guide" { " wide" } else { "" },
         fl = flashes(&ctx.flashes),
-        busy = if ctx.user.is_some() { BUSY_SCRIPT } else { "" },
+        busy = if ctx.admin { BUSY_SCRIPT } else { "" },
     )
 }
 

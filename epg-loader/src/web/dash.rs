@@ -76,6 +76,9 @@ pub async fn page_get(State(app): State<Shared>, headers: HeaderMap, Query(q): Q
     if ctx.user.is_none() {
         return auth::login_page(&app, &ctx, "./");
     }
+    if !ctx.admin {
+        return super::viewer_home(&ctx);
+    }
     let conn = match app.db() {
         Ok(c) => c,
         Err(e) => {

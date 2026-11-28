@@ -57,6 +57,9 @@ pub async fn page_get(State(app): State<Shared>, headers: HeaderMap, Query(q): Q
     if ctx.user.is_none() {
         return auth::login_page(&app, &ctx, "guides");
     }
+    if !ctx.admin {
+        return super::viewer_home(&ctx);
+    }
     // The source test in the add/edit dialog polls this.
     if q.contains_key("check") {
         let running = app.jobs.running().is_some_and(|j| j.name == "check-guide");
@@ -248,6 +251,9 @@ pub async fn page_post(State(app): State<Shared>, headers: HeaderMap, req: axum:
             return json(&ctx, StatusCode::OK, json!({ "error": "You were logged out (EPGArr was restarted or updated). Reload the page and log in again." }));
         }
         return auth::login_page(&app, &ctx, "guides");
+    }
+    if !ctx.admin {
+        return super::viewer_home(&ctx);
     }
     if f.get("csrf") != ctx.csrf {
         if script {

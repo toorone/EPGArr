@@ -186,14 +186,16 @@
       ch.appendChild(make('span', 'g-logo-none', c[2].slice(0, 2)));
     }
     ch.appendChild(make('span', 'g-ch-name', c[2]));
-    // Click (or Enter) opens the "Channel logo" dialog on tv.
-    if (!c[3]) ch.classList.add('no-logo');
-    ch.tabIndex = 0;
-    ch.setAttribute('role', 'button');
-    ch.setAttribute('aria-label', 'Channel logo for ' + c[2]);
-    var pick = function () { window.dispatchEvent(new CustomEvent('epg-channel', { detail: { id: c[1], name: c[2], logo: c[3] || '' } })); };
-    ch.addEventListener('click', pick);
-    ch.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); } });
+    // Admins: click (or Enter) opens the "Channel logo" dialog. Viewers cannot change anything.
+    if (window.EPG_ADMIN !== false) {
+      if (!c[3]) ch.classList.add('no-logo');
+      ch.tabIndex = 0;
+      ch.setAttribute('role', 'button');
+      ch.setAttribute('aria-label', 'Channel logo for ' + c[2]);
+      var pick = function () { window.dispatchEvent(new CustomEvent('epg-channel', { detail: { id: c[1], name: c[2], logo: c[3] || '' } })); };
+      ch.addEventListener('click', pick);
+      ch.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); } });
+    }
     row.appendChild(ch);
     if (!loaded) {
       row.appendChild(make('div', 'g-loading'));
@@ -416,7 +418,7 @@
       (p.categories || []).forEach(function (c) { tags.appendChild(make('span', 'g-tag', c)); });
       if (tags.childNodes.length) detail.appendChild(tags);
       detail.appendChild(make('p', 'g-d-desc', p.desc || 'No description.'));
-      detail.appendChild(tmdbBox(p));
+      if (window.EPG_ADMIN !== false) detail.appendChild(tmdbBox(p));
     }).catch(function (e) {
       detail.textContent = '';
       detail.appendChild(make('p', 'bad-text', 'Could not load the details: ' + e.message));

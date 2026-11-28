@@ -329,6 +329,9 @@ pub async fn page_get(State(app): State<Shared>, headers: HeaderMap, Query(q): Q
     if ctx.user.is_none() {
         return auth::login_page(&app, &ctx, "settings");
     }
+    if !ctx.admin {
+        return super::viewer_home(&ctx);
+    }
     if let Some(name) = q.get("backup") {
         return download(&ctx, &app, name);
     }
@@ -362,14 +365,16 @@ pub async fn page_get(State(app): State<Shared>, headers: HeaderMap, Query(q): Q
             } else {
                 let confirm = esc(&serde_json::to_string(&format!("Delete the user {}?", u.username)).unwrap_or_default());
                 format!(
-                    r#"<button class="ghost" form="user-toggle" name="username" value="{name}">{t}</button><button class="ghost danger-text" form="user-delete" name="username" value="{name}" onclick="return confirm({confirm})">Delete</button>"#,
+                    r#"<button class="ghost" form="user-role" name="username" value="{name}" title="{rt}">{rl}</button><button class="ghost" form="user-toggle" name="username" value="{name}">{t}</button><button class="ghost danger-text" form="user-delete" name="username" value="{name}" onclick="return confirm({confirm})">Delete</button>"#,
                     t = if u.disabled { "Enable" } else { "Disable" },
+                    rl = if u.role == "admin" { "Make viewer" } else { "Make admin" },
+                    rt = if u.role == "admin" { "Viewers only see the TV Guide and cannot change anything" } else { "Admins can change everything" },
                 )
             };
             format!(
                 r#"<tr><td><strong>{name}</strong>{you}</td><td>{role}</td><td>{last}</td><td>{status}</td><td class="user-actions"><button type="button" class="ghost" data-pw="{name}">Change password</button>{actions}</td></tr>"#,
                 you = if is_me { r#" <span class="muted">(you)</span>"# } else { "" },
-                role = esc(&u.role),
+                role = if u.role == "admin" { "Admin" } else { "Viewer" },
                 last = if u.last_login > 0 { esc(&when_long(u.last_login)) } else { r#"<span class="muted">never</span>"#.into() },
                 status = if u.disabled { r#"<span class="warn-text">disabled</span>"# } else { r#"<span class="ok-text">active</span>"# },
             )
@@ -409,6 +414,7 @@ pub async fn page_get(State(app): State<Shared>, headers: HeaderMap, Query(q): Q
     let body = format!(
         r##"<form method="post" id="user-add" autocomplete="off">{csrf}<input type="hidden" name="action" value="add_user"></form>
 <form method="post" id="user-setpw" autocomplete="off">{csrf}<input type="hidden" name="action" value="set_password"></form>
+<form method="post" id="user-role">{csrf}<input type="hidden" name="action" value="set_role"></form>
 <form method="post" id="user-toggle">{csrf}<input type="hidden" name="action" value="toggle_user"></form>
 <form method="post" id="user-delete">{csrf}<input type="hidden" name="action" value="delete_user"></form>
 <form method="post" id="bk-create">{csrf}<input type="hidden" name="action" value="backup_create"></form>
@@ -457,7 +463,7 @@ pub async fn page_get(State(app): State<Shared>, headers: HeaderMap, Query(q): Q
 <h3 class="adv-h">Add a user</h3>
 <div class="row"><div><label for="nu-name">Username</label><input form="user-add" type="text" id="nu-name" name="username" maxlength="32" autocomplete="off"><p class="hint">Letters, digits, dots, dashes or underscores.</p></div>
 <div><label for="nu-pw1">Password</label><input form="user-add" type="password" id="nu-pw1" name="new_password" autocomplete="new-password" minlength="8"><p class="hint">At least 8 characters.</p></div>
-<div><label for="nu-pw2">Repeat it</label><input form="user-add" type="password" id="nu-pw2" name="confirm_password" autocomplete="new-password"></div></div>
+<div><label for="nu-pw2">Repeat it</label><input form="user-add" type="password" id="nu-pw2" name="confirm_password" autocomplete="new-password"></div><div><label for="nu-role">Role</label><select form="user-add" id="nu-role" name="role"><option value="viewer">Viewer: TV Guide only</option><option value="admin">Admin: can change everything</option></select></div></div>
 <button form="user-add">Add user</button>
 </section>
 <section class="card set-panel" id="backups"><h2>Backups</h2>
@@ -690,8 +696,8 @@ fn users_action(app: &Shared, ctx: &Ctx, action: &str, f: &Posted) -> Response {
         } else {
             match auth::hash_password(&pw) {
                 Ok(hash) => {
-                    users.push(auth::User { username: name.clone(), hash, role: "admin".into(), disabled: false, created: timeutil::now_unix(), last_login: 0 });
-                    msg = format!("User {name} added.");
+                    users.push(auth::User { username: name.clone(), hash, role: if f.get("role") == "viewer" { "viewer".into() } else { "admin".into() }, disabled: false, created: timeutil::now_unix(), last_login: 0 });
+                    msg = format!("{} {name} added.", if f.get("role") == "viewer" { "Viewer" } else { "Admin" });
                 }
                 Err(e) => err = format!("Could not set the password: {e}"),
             }
@@ -710,9 +716,19 @@ fn users_action(app: &Shared, ctx: &Ctx, action: &str, f: &Posted) -> Response {
                 }
             }
         } else if users[i].username.eq_ignore_ascii_case(&me) {
-            err = format!("You cannot {} yourself.", if action == "delete_user" { "delete" } else { "disable" });
-        } else if !users[i].disabled && active_admins <= 1 {
+            err = format!(
+                "You cannot {} yourself.",
+                match action { "delete_user" => "delete", "set_role" => "change the role of", _ => "disable" }
+            );
+        } else if users[i].role == "admin" && !users[i].disabled && active_admins <= 1 {
             err = "This is the last active admin.".into();
+        } else if action == "set_role" {
+            users[i].role = if users[i].role == "admin" { "viewer".into() } else { "admin".into() };
+            msg = if users[i].role == "admin" {
+                format!("{} is now an admin and can change everything.", users[i].username)
+            } else {
+                format!("{} is now a viewer: only the TV Guide, no changes.", users[i].username)
+            };
         } else if action == "toggle_user" {
             users[i].disabled = !users[i].disabled;
             msg = format!(
@@ -749,6 +765,9 @@ pub async fn page_post(State(app): State<Shared>, headers: HeaderMap, req: Reque
     if ctx.user.is_none() {
         return auth::login_page(&app, &ctx, "settings");
     }
+    if !ctx.admin {
+        return super::viewer_home(&ctx);
+    }
     let (f, files) = read_post(req, 60 << 20).await;
     if f.get("csrf") != ctx.csrf {
         app.flash(&ctx, "error", "The form expired. Please try again.");
@@ -758,7 +777,7 @@ pub async fn page_post(State(app): State<Shared>, headers: HeaderMap, req: Reque
     match action.as_str() {
         "save_settings" => save_settings(&app, &ctx, &f),
         "save_keys" => save_keys(&app, &ctx, &f),
-        "add_user" | "set_password" | "toggle_user" | "delete_user" => users_action(&app, &ctx, &action, &f),
+        "add_user" | "set_password" | "toggle_user" | "delete_user" | "set_role" => users_action(&app, &ctx, &action, &f),
         "backup_create" => {
             match backup_create(&app, "manual") {
                 Ok(n) => app.flash(&ctx, "ok", format!("Backup made: {n}")),

@@ -70,10 +70,16 @@ pub async fn page_get(State(app): State<Shared>, headers: HeaderMap, Query(q): Q
         if ctx.user.is_none() {
             return json(&ctx, StatusCode::UNAUTHORIZED, json!({ "error": "Log in first." }));
         }
+        if !ctx.admin {
+            return json(&ctx, StatusCode::FORBIDDEN, json!({ "error": "Only admins can do that." }));
+        }
         return json(&ctx, StatusCode::OK, data(&app));
     }
     if ctx.user.is_none() {
         return auth::login_page(&app, &ctx, "activity");
+    }
+    if !ctx.admin {
+        return super::viewer_home(&ctx);
     }
     let csrf = csrf_field(&ctx);
     let bg_on = settings(&app).get("tmdb_background").map_or(true, |v| v != "0");
@@ -128,6 +134,9 @@ pub async fn page_post(State(app): State<Shared>, headers: HeaderMap, req: axum:
     let ctx = app.ctx(&headers);
     if ctx.user.is_none() {
         return auth::login_page(&app, &ctx, "activity");
+    }
+    if !ctx.admin {
+        return super::viewer_home(&ctx);
     }
     let (f, _) = super::read_post(req, 0).await;
     if f.get("csrf") != ctx.csrf {
