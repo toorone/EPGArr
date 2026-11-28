@@ -4,6 +4,15 @@ Every change to EPGArr is written down here, newest first. Each release lists
 what was added, changed, fixed and removed, and anything you must do when you
 update.
 
+## 0.7.2 — 2026-11-28
+
+### Changed
+- Add / edit guide: the source has two tabs, **Source address** (type or paste
+  an address, Test source) and **Public guides** (choose epgshare01,
+  iptv-epg.org or epg.guru, filter, click one). Picking a public guide fills
+  in the address and a name and goes back to the Source address tab. This
+  replaces the "Or pick a public guide…" link under the address.
+
 ## 0.7.1 — 2026-11-28
 
 ### Added

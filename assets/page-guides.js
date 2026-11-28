@@ -121,6 +121,7 @@
         $('g-test-out').className = 'hint';
         $('g-test-out').textContent = 'Plain or gzipped XMLTV, or an absolute file path on the server.';
         addr();
+        if (window.EPG_SRC_TAB) { window.EPG_SRC_TAB('own'); }
         if (dlg.showModal) { dlg.showModal(); } else { dlg.setAttribute('open', ''); }
         $('g-name').focus();
       }
@@ -156,11 +157,20 @@
           setTimeout(poll, 1500);
         }).catch(function (e) { done('bad-text', 'Could not start the test: ' + (e && e.message ? e.message : 'no connection to EPGArr') + '.'); });
       });
-      // Public guides: pick one and its address (and a name) are filled in.
+      // Source: "Your own source" (an address) or "Public guides" (pick one; its address is filled in).
       (function () {
-        var openBtn = $('g-presets-open'), box = $('g-presets'), prov = $('g-prov'), list = $('g-plist'), filter = $('g-pfilter'), pmsg = $('g-pmsg');
-        if (!openBtn) return;
+        var tabs = form.querySelectorAll('[data-src-tab]'), prov = $('g-prov'), list = $('g-plist'), filter = $('g-pfilter'), pmsg = $('g-pmsg');
+        if (!prov) return;
         var items = [], provName = '';
+        function srcTab(t) {
+          tabs.forEach(function (b) { var on = b.dataset.srcTab === t; b.classList.toggle('on', on); b.setAttribute('aria-selected', on ? 'true' : 'false'); });
+          form.querySelectorAll('[data-src-pane]').forEach(function (p) { p.hidden = p.dataset.srcPane !== t; });
+          $('g-src').required = t === 'own';
+          if (t === 'public' && !prov.childNodes.length) loadProviders();
+          if (t === 'public') filter.focus();
+        }
+        window.EPG_SRC_TAB = srcTab;
+        tabs.forEach(function (b) { b.addEventListener('click', function () { srcTab(b.dataset.srcTab); }); });
         function show() {
           var q = filter.value.trim().toLowerCase();
           list.textContent = '';
@@ -176,14 +186,13 @@
             b.addEventListener('click', function () {
               $('g-src').value = r.url;
               if (!$('g-name').value.trim()) { $('g-name').value = r.name; $('g-name').dispatchEvent(new Event('input')); }
-              box.hidden = true;
-              openBtn.setAttribute('aria-expanded', 'false');
-              $('g-test-out').className = 'hint';
-              $('g-test-out').textContent = 'Filled in from ' + provName + '. Press Test source to check it.';
+              srcTab('own');
+              $('g-test-out').className = 'hint ok-text';
+              $('g-test-out').textContent = r.name + ' from ' + provName + ' is filled in. Press Test source to check it, or Save guide.';
             });
             list.appendChild(b);
           });
-          pmsg.textContent = items.length ? shown.length + ' of ' + items.length + ' guides from ' + provName + '.' : pmsg.textContent;
+          if (items.length) pmsg.textContent = shown.length + ' of ' + items.length + ' guides from ' + provName + '.';
         }
         function load(p, btn) {
           prov.querySelectorAll('button').forEach(function (x) { x.classList.toggle('on', x === btn); });
@@ -191,16 +200,10 @@
           pmsg.textContent = 'Loading the list from ' + p.name + '…';
           fetch('api/presets?provider=' + encodeURIComponent(p.id), { credentials: 'same-origin', cache: 'no-store' })
             .then(function (r) { return r.json(); })
-            .then(function (j) {
-              if (j.error) { pmsg.textContent = j.error; return; }
-              items = j.results; show();
-            })
+            .then(function (j) { if (j.error) { pmsg.textContent = j.error; return; } items = j.results; show(); })
             .catch(function () { pmsg.textContent = 'Could not load the list. Try again.'; });
         }
-        openBtn.addEventListener('click', function () {
-          box.hidden = !box.hidden;
-          openBtn.setAttribute('aria-expanded', box.hidden ? 'false' : 'true');
-          if (box.hidden || prov.childNodes.length) return;
+        function loadProviders() {
           fetch('api/presets', { credentials: 'same-origin', cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (j) {
             (j.providers || []).forEach(function (p, i) {
               var b = document.createElement('button');
@@ -211,7 +214,7 @@
               if (i === 0) load(p, b);
             });
           });
-        });
+        }
         filter.addEventListener('input', show);
         filter.addEventListener('keydown', function (e) { if (e.key === 'Enter') e.preventDefault(); });
       })();
