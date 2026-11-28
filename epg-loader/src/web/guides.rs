@@ -40,6 +40,18 @@ fn form_data(headers: &HeaderMap, g: &db::Guide) -> serde_json::Value {
     })
 }
 
+/// "HTTPS://Host/path/guide.xml.gz" and "http://host/path/guide.xml" are the same source.
+fn source_key(s: &str) -> String {
+    let s = s.trim().to_lowercase();
+    let s = s.strip_prefix("https://").or_else(|| s.strip_prefix("http://")).unwrap_or(&s).to_string();
+    let s = s.trim_end_matches('/');
+    s.strip_suffix(".gz").unwrap_or(s).to_string()
+}
+
+pub fn same_source(a: &str, b: &str) -> bool {
+    !a.trim().is_empty() && source_key(a) == source_key(b)
+}
+
 fn unique_slug(guides: &[db::Guide], name: &str, except: i64) -> String {
     let base = db::slugify(name);
     let taken: Vec<&str> = guides.iter().filter(|g| g.id != except).map(|g| g.slug.as_str()).collect();
@@ -319,6 +331,11 @@ pub async fn page_post(State(app): State<Shared>, headers: HeaderMap, req: axum:
                 }
                 (Ok(_), None) if !is_new => app.flash(&ctx, "error", "That guide no longer exists."),
                 (Ok(i), cur) => {
+                    // The same source twice makes two copies of one guide: not allowed, whatever the name.
+                    if let Some(o) = guides.iter().find(|o| same_source(&o.source_url, &i.source_url) && (is_new || o.id != id)) {
+                        app.flash(&ctx, "error", format!("That source is already used by the guide \"{}\".", o.name));
+                        return redirect(&ctx, &if is_new { "guides?add=1".to_string() } else { format!("guides?edit={id}") });
+                    }
                     if guides.iter().any(|o| o.name.eq_ignore_ascii_case(&i.name) && (is_new || o.id != id)) {
                         app.flash(&ctx, "error", format!("There is already a guide called \"{}\". Pick another name.", i.name));
                         return redirect(&ctx, &if is_new { "guides?add=1".to_string() } else { format!("guides?edit={id}") });
@@ -396,4 +413,17 @@ pub async fn page_post(State(app): State<Shared>, headers: HeaderMap, req: axum:
         _ => {}
     }
     redirect(&ctx, back)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_same_source_in_another_spelling_is_the_same() {
+        assert!(same_source("https://epgshare01.online/epgshare01/epg_ripper_US2.xml.gz", "http://EPGSHARE01.online/epgshare01/epg_ripper_US2.xml"));
+        assert!(same_source(" https://x/guide.xml/ ", "https://x/guide.xml"));
+        assert!(!same_source("https://x/a.xml", "https://x/b.xml"));
+        assert!(!same_source("", ""));
+    }
 }

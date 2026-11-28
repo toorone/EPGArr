@@ -175,14 +175,23 @@
           var q = filter.value.trim().toLowerCase();
           list.textContent = '';
           var shown = items.filter(function (r) { return !q || r.name.toLowerCase().indexOf(q) >= 0 || r.url.toLowerCase().indexOf(q) >= 0; });
+          // Sources already used by a guide here (compared like the server does).
+          var key = function (u) { return String(u || '').trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/+$/, '').replace(/\.gz$/, ''); };
+          var used = {};
+          document.querySelectorAll('[data-edit]').forEach(function (e) {
+            try { var d = JSON.parse(e.getAttribute('data-edit')); if (d.source_url && String(d.id) !== $('g-id').value) used[key(d.source_url)] = d.name; } catch (x) {}
+          });
           shown.forEach(function (r) {
             var b = document.createElement('button');
             b.type = 'button';
             b.className = 'g-pitem';
+            var already = used[key(r.url)];
+            if (already) { b.disabled = true; b.title = 'Already added as "' + already + '"'; }
             b.setAttribute('role', 'option');
             var n = document.createElement('strong'); n.textContent = r.name;
             var u = document.createElement('span'); u.textContent = r.url.replace(/^https?:\/\//, '');
             b.appendChild(n); b.appendChild(u);
+            if (already) { var a = document.createElement('em'); a.textContent = 'Already added as "' + already + '"'; b.appendChild(a); }
             b.addEventListener('click', function () {
               $('g-src').value = r.url;
               if (!$('g-name').value.trim()) { $('g-name').value = r.name; $('g-name').dispatchEvent(new Event('input')); }

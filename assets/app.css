@@ -874,3 +874,5 @@ main.page-guide { padding-bottom: 1rem; }
 .g-copy-addr:hover { border-color: var(--accent); filter: none; }
 .g-copy-addr svg { width: 15px; height: 15px; color: var(--accent); }
 .g-pick { display: inline-flex; align-items: center; }
+.g-pitem:disabled { opacity: 0.55; cursor: not-allowed; border-style: dashed; background: transparent; }
+.g-pitem em { font-size: 0.72rem; font-style: normal; color: var(--warn); }

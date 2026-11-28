@@ -4,6 +4,15 @@ Every change to EPGArr is written down here, newest first. Each release lists
 what was added, changed, fixed and removed, and anything you must do when you
 update.
 
+## 0.8.2 — 2026-11-28
+
+### Fixed
+- The same XMLTV source can no longer be added twice under different names:
+  saving says which guide already uses it. Small differences in the address
+  don't matter (http/https, capitals, a trailing slash, `.xml` vs `.xml.gz`).
+- Public guides: guides you already added are greyed out in the list with
+  "Already added as …".
+
 ## 0.8.1 — 2026-11-28
 
 ### Changed
