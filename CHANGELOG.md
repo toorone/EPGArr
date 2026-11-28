@@ -4,6 +4,15 @@ Every change to EPGArr is written down here, newest first. Each release lists
 what was added, changed, fixed and removed, and anything you must do when you
 update.
 
+## 0.5.1 — 2026-11-27
+
+### Changed
+- Settings opens on **Guides**, its first section: the Settings item in the
+  menu goes straight there.
+- Settings › Guides: "+ Add guide" sits on the same row as the "Guides" title
+  inside the section, instead of in a bar above the page that pushed the whole
+  page down. Guides now lines up with the other Settings sections.
+
 ## 0.5.0 — 2026-11-27: identify programmes on TMDB yourself
 
 ### Added

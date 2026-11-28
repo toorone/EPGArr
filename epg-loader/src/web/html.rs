@@ -114,7 +114,8 @@ pub fn page(ctx: &Ctx, active: &str, title: &str, tools: &str, body: &str) -> St
         a = item("dashboard", "./", "Dashboard", "dashboard"),
         b = item("guide", "tv", "TV Guide", "grid"),
         c = item("activity", "activity", "Activity", "pulse").replacen("<a class=\"item", "<a id=\"nav-activity\" class=\"item", 1),
-        d = item("settings", "settings", "Settings", "settings"),
+        // Settings opens on its first section, Guides.
+        d = item("settings", "guides", "Settings", "settings"),
         wide = if active == "guide" { " wide" } else { "" },
         fl = flashes(&ctx.flashes),
         busy = if ctx.user.is_some() { BUSY_SCRIPT } else { "" },

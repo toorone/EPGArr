@@ -73,13 +73,12 @@ pub async fn page_get(State(app): State<Shared>, headers: HeaderMap, Query(q): Q
     } else {
         q.get("edit").and_then(|id| id.parse::<i64>().ok()).and_then(|id| guides.iter().find(|g| g.id == id)).map(|g| form_data(&headers, g))
     };
-    let tools = r#"<button type="button" class="button" data-add>+ Add guide</button>"#;
     let body = format!(
-        r#"<div class="set-layout">{nav}<div class="set-panels set-panels-wide">{}</div></div>"#,
+        r#"<div class="set-layout">{nav}<div class="set-panels set-panels-wide"><div class="set-panel-head"><h2>Guides</h2><button type="button" class="button" data-add>+ Add guide</button></div>{}</div></div>"#,
         render(&app, &ctx, &headers, &guides, open),
         nav = super::settings::tabs_nav(true),
     );
-    html_page(&ctx, page(&ctx, "guides", "Guides", tools, &body))
+    html_page(&ctx, page(&ctx, "guides", "Guides", "", &body))
 }
 
 fn render(app: &Shared, ctx: &Ctx, headers: &HeaderMap, guides: &[db::Guide], open: Option<serde_json::Value>) -> String {
