@@ -4,6 +4,16 @@ Every change to EPGArr is written down here, newest first. Each release lists
 what was added, changed, fixed and removed, and anything you must do when you
 update.
 
+## 0.6.2 — 2026-11-28
+
+### Added
+- TV Guide remembers where you were: go to another page and back, and the
+  guide opens at the same spot (scroll position, time of day, day and group
+  filter). It is kept for 30 minutes, per guide; after that it opens at "Now"
+  again.
+- TV Guide: a small round **back to the top** button in the guide's
+  bottom-right corner, shown once you have scrolled down.
+
 ## 0.6.1 — 2026-11-28
 
 ### Added

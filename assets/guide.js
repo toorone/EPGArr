@@ -491,9 +491,41 @@
 
   // ---------- wiring
 
+  // Where you were in the guide is remembered (for 30 minutes) when you go to another page and back.
+  var POS_KEY = 'epg-guide-pos:' + (window.EPG_GUIDE || '');
+  var saveTimer = 0;
+  function savePos() {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(function () {
+      try {
+        sessionStorage.setItem(POS_KEY, JSON.stringify({
+          top: scroller.scrollTop, left: scroller.scrollLeft, day: S.dayStart, group: S.group, at: Date.now()
+        }));
+      } catch (e) {}
+    }, 150);
+  }
+  function savedPos() {
+    try {
+      var p = JSON.parse(sessionStorage.getItem(POS_KEY) || 'null');
+      return p && Date.now() - p.at < 30 * 60 * 1000 ? p : null;
+    } catch (e) { return null; }
+  }
+
+  // A small "back to the top" button in the guide's corner, shown once you have scrolled down.
+  var topBtn = make('button', 'g-top');
+  topBtn.type = 'button';
+  topBtn.title = 'Back to the top';
+  topBtn.setAttribute('aria-label', 'Back to the top');
+  topBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 15 6-6 6 6"/></svg>';
+  topBtn.hidden = true;
+  topBtn.addEventListener('click', function () { scroller.scrollTop = 0; topBtn.hidden = true; scroller.focus({ preventScroll: true }); });
+  wrap.appendChild(topBtn);
+
   var raf = 0;
   scroller.addEventListener('scroll', function () {
     if (!raf) raf = requestAnimationFrame(function () { raf = 0; render(); });
+    topBtn.hidden = scroller.scrollTop < 300;
+    savePos();
   }, { passive: true });
   el('g-prev').addEventListener('click', function () { setDay(localMidnight(S.dayStart - 3600), true); });
   el('g-next').addEventListener('click', function () { setDay(S.dayEnd, true); });
@@ -557,11 +589,25 @@
     S.min = j.min;
     S.max = j.max;
     lastPhone = window.matchMedia('(max-width: 640px)').matches;
+    var back = savedPos();
+    // Back from another page: the same group filter, day and place as before.
+    if (back && back.group && (j.groups || []).some(function (g) { return g[0] === back.group; })) {
+      S.group = back.group;
+      S.rows = S.channels.filter(function (c) { return c[4] === S.group; });
+    }
     buildChips(j.groups || []);
     var today = localMidnight(Date.now() / 1000);
     var start = (today < localMidnight(S.min) || today >= S.max) ? localMidnight(S.min) : today;
-    setDay(start, false);
-    if (start === today) goNow();
+    if (back && back.day && back.day >= localMidnight(S.min) && back.day < S.max) {
+      setDay(back.day, false);
+      scroller.scrollLeft = back.left;
+      scroller.scrollTop = back.top;
+      topBtn.hidden = scroller.scrollTop < 300;
+      render();
+    } else {
+      setDay(start, false);
+      if (start === today) goNow();
+    }
   }).catch(function (e) {
     status.textContent = 'Could not load the guide: ' + e.message;
   });
