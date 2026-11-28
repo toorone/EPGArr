@@ -4,6 +4,27 @@ Every change to EPGArr is written down here, newest first. Each release lists
 what was added, changed, fixed and removed, and anything you must do when you
 update.
 
+## 0.6.0 — 2026-11-27: its own user
+
+### Changed
+- EPGArr runs as its own **`epgarr` user** with the ids you set in
+  `docker-compose.yml`: `PUID` and `PGID` (default 1000:1000). Files in
+  `./data` belong to you on the host. It used to run as `www-data` (uid 82).
+
+### Removed
+- `epg-loader build --if-due` and the "every 15 minutes" schedule wording: the
+  built-in scheduler in `epg-loader serve` decides when to build.
+- The start-up step that changed the owner of files "from an older install".
+- Leftover mentions of `status.json`, the single `epg.xml` and `channels.toml`
+  in the README and comments.
+
+### When you update
+- Add `PUID` and `PGID` to your `docker-compose.yml` (see the README; run `id`
+  on the host for your ids).
+- Your current `./data` was written as uid 82, so give it to the new user once:
+  `sudo chown -R 1000:1000 ./data` (use your PUID:PGID), then
+  `docker compose up -d`.
+
 ## 0.5.1 — 2026-11-27
 
 ### Changed

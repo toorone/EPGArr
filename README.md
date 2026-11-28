@@ -24,6 +24,8 @@ services:
       - "8080:80"
     environment:
       - TZ=America/New_York   # your time zone
+      - PUID=1000             # user that owns ./data (run "id" on the host)
+      - PGID=1000             # group that owns ./data
     volumes:
       - ./data:/data          # database, users, backups, logs, guide files, logos
 ```
@@ -35,12 +37,12 @@ docker compose up -d
 Without Compose, the same in one command:
 
 ```bash
-docker run -d --name epgarr --restart unless-stopped -p 8080:80 -e TZ=America/New_York -v "$PWD/data:/data" ghcr.io/toorone/epgarr:latest
+docker run -d --name epgarr --restart unless-stopped -p 8080:80 -e TZ=America/New_York -e PUID=1000 -e PGID=1000 -v "$PWD/data:/data" ghcr.io/toorone/epgarr:latest
 ```
 
 Open `http://<server>:8080`, create your account, then add a guide on the **Guides** page and press **Build now**. Each guide's address (e.g. `http://<server>:8080/guides/us-locals.xml`, or `.xml.gz`) goes into your media server as an XMLTV guide source.
 
-Everything that matters is in `./data`. The program runs as user `www-data` (uid 82, the same as earlier versions) and the container fixes the ownership of `./data` when it starts.
+Everything that matters is in `./data`. The program runs as its own `epgarr` user with the ids you give in `PUID` and `PGID` (default 1000:1000), so the files in `./data` belong to you on the host. Run `id` on the host to see your ids.
 
 ## Update
 

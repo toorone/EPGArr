@@ -9,5 +9,7 @@ services:
       - "8080:80"
     environment:
       - TZ=America/New_York   # your time zone
+      - PUID=1000             # user that owns ./data (run "id" on the host)
+      - PGID=1000             # group that owns ./data
     volumes:
       - ./data:/data          # database, users, backups, logs, guide files, logos

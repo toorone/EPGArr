@@ -97,7 +97,7 @@ pub struct GroupInput<'a> {
     pub is_tv: bool,
 }
 
-/// Steps 1 and 2: channels.toml group, then the source's own categories.
+/// Steps 1 and 2: the channel override's group, then the source's own categories.
 pub fn source_group(override_group: Option<&str>, categories: &[String], rules: &Rules) -> Option<String> {
     if let Some(g) = override_group.map(str::trim).filter(|g| !g.is_empty()) {
         return Some(canonical_group(g));

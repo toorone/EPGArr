@@ -16,8 +16,8 @@ RUN cargo build --release --locked
 # ---- the app -----------------------------------------------------------------
 FROM alpine:3
 RUN apk add --no-cache tini su-exec tzdata ca-certificates libcap \
- && (addgroup -S -g 82 www-data 2>/dev/null || true) \
- && adduser -S -D -H -u 82 -G www-data www-data
+ && addgroup -g 1000 epgarr \
+ && adduser -D -H -u 1000 -G epgarr -s /sbin/nologin epgarr
 
 COPY --from=build /src/target/release/epg-loader /usr/local/bin/epg-loader
 COPY docker/entrypoint.sh /entrypoint.sh
@@ -32,6 +32,8 @@ ENV EPG_LOADER_DIR=/data \
     EPGARR_DATA=/data \
     EPGARR_LISTEN=0.0.0.0:80 \
     EPGARR_ASSETS=/app/assets \
+    PUID=1000 \
+    PGID=1000 \
     TZ=UTC
 VOLUME ["/data"]
 EXPOSE 80

@@ -173,9 +173,6 @@ struct Cli {
     /// Make no TMDB requests (results already in the cache are still used)
     #[arg(long, global = true)]
     no_tmdb: bool,
-    /// build: do nothing unless refresh_hours have passed since the last run (for the schedule)
-    #[arg(long, global = true)]
-    if_due: bool,
     /// build / check: only this guide (its slug, e.g. main); default: every enabled guide
     #[arg(long, global = true)]
     guide: Option<String>,
@@ -358,11 +355,7 @@ async fn main() -> ExitCode {
                     return ExitCode::FAILURE;
                 }
             };
-            if cli.if_due {
-                // The schedule runs this every 15 minutes: resume background TMDB lookups if needed.
-                enrich::maybe_spawn(&conn, &cfg, &data_dir, output_dir.as_deref());
-            }
-            match build_guides(&conn, &cfg, cli.guide.as_deref(), cli.if_due, opts).await {
+            match build_guides(&conn, &cfg, cli.guide.as_deref(), false, opts).await {
                 Ok(Outcome::Built) => ExitCode::SUCCESS,
                 Err(e) if e.downcast_ref::<Cancelled>().is_some() => {
                     println!("Build cancelled; the previous guide was kept");
@@ -574,9 +567,9 @@ fn guide_config(cfg: &Config, g: &db::Guide) -> Config {
 }
 
 /// Build one guide (--guide), or every enabled guide in order (with
-/// `if_due`, only those whose refresh interval has passed). A guide that
+/// `scheduled` (the built-in scheduler), only those whose refresh interval has passed). A guide that
 /// fails does not stop the others; a cancel stops them all.
-async fn build_guides(conn: &Connection, cfg: &Config, only: Option<&str>, if_due: bool, opts: Opts) -> Result<Outcome> {
+async fn build_guides(conn: &Connection, cfg: &Config, only: Option<&str>, scheduled: bool, opts: Opts) -> Result<Outcome> {
     let all = db::guides(conn)?;
     let list: Vec<&db::Guide> = match only {
         Some(slug) => match all.iter().find(|g| g.slug == slug) {
@@ -588,10 +581,10 @@ async fn build_guides(conn: &Connection, cfg: &Config, only: Option<&str>, if_du
     let mut failed: Vec<String> = Vec::new();
     for g in list {
         let gcfg = guide_config(cfg, g);
-        if if_due && !is_due(conn, g.id, &gcfg) {
+        if scheduled && !is_due(conn, g.id, &gcfg) {
             continue;
         }
-        if if_due && db::last_run_interrupted(conn, g.id) {
+        if scheduled && db::last_run_interrupted(conn, g.id) {
             println!("Guide \"{}\": its last build was cut short (EPGArr was stopped); building it again now", g.name);
         }
         if gcfg.source_url.is_empty() {

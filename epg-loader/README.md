@@ -24,15 +24,15 @@ EPGArr runs only as a Docker container; see the README in the project root for t
 
 The container runs `epg-loader serve`: the web pages on port 80 (`EPGARR_LISTEN`), plus the schedule, which rebuilds each guide when its interval has passed and resumes the background lookups. Builds and tests started from the pages run as child processes of the program. The program is given `EPG_LOADER_DIR=/data` and `EPG_OUTPUT_DIR=/data`; guide files are served from `/data/guides/` and custom logos from `/data/logos/`.
 
-`epg.db` is SQLite in WAL mode with a busy timeout, so the pages and a running build can use it at the same time. The TMDB key is never written to `status.json`, the logs or the guide files, and the pages only show its last 4 characters.
+`epg.db` is SQLite in WAL mode with a busy timeout, so the pages and a running build can use it at the same time. The TMDB key is never written to the status files, the logs or the guide files, and the pages only show its last 4 characters.
 
 ## Several guides
 
-Each guide has its own XMLTV source, days to keep, rebuild interval and logo country (Guides page). Every guide writes `guides/<slug>.xml` and `.xml.gz`, named after the guide (renaming it changes the address; the old files are removed after its next build), and `guides/status-<id>.json`. The old single `epg.xml` is removed after the first guide's first build. TMDB results and logo lists are shared, so a title is looked up once for all guides.
+Each guide has its own XMLTV source, days to keep, rebuild interval and logo country (Guides page). Every guide writes `guides/<slug>.xml` and `.xml.gz`, named after the guide (renaming it changes the address; the old files are removed after its next build), and `guides/status-<id>.json`. TMDB results and logo lists are shared, so a title is looked up once for all guides.
 
 - `epg-loader build` builds every enabled guide in turn; one failing source does not stop the others.
 - `epg-loader build --guide <slug>` builds one guide; `check --guide <slug>` tests its source.
-- `epg-loader build --if-due` (the schedule) builds only the guides whose interval has passed.
+- The built-in scheduler (part of `epg-loader serve`) rebuilds each guide when its interval has passed.
 
 ## Adding the guide to your media server
 
@@ -80,7 +80,7 @@ News and sports programmes are not looked up on TMDB, because they rarely match 
 ## Commands
 
 ```
-epg-loader --data-dir DIR [--output-dir DIR] [--dry-run] [--no-tmdb] [--if-due] <command>
+epg-loader --data-dir DIR [--output-dir DIR] [--dry-run] [--no-tmdb] [--guide SLUG] <command>
 
   build     build once (the default)
   serve     the web pages and the schedule (what the container runs)
@@ -94,7 +94,6 @@ epg-loader --data-dir DIR [--output-dir DIR] [--dry-run] [--no-tmdb] [--if-due] 
   --guide SLUG                    build or check one guide only
   --listen / EPGARR_LISTEN        serve: address to listen on (default 0.0.0.0:80)
   --assets / EPGARR_ASSETS        serve: page assets folder (default /app/assets)
-  --if-due                        build only the guides whose interval has passed
   --dry-run                       write no output and record no run
   --no-tmdb                       make no TMDB requests (cached results still used)
 ```
@@ -123,5 +122,5 @@ The `TMDB_API_KEY` environment variable overrides the saved key.
 ## Troubleshooting
 
 - **Something does not work:** Settings › Advanced › System checks, the Activity page and `docker logs epgarr` say why. Logs are kept in `/data/logs`.
-- **"attempt to write a readonly database":** the `/data` volume is not writable by the container (user www-data, uid 82).
+- **"attempt to write a readonly database":** the `/data` volume is not writable by the container (it runs as `PUID`:`PGID`, default 1000:1000; give that user write access to `./data`).
 - **Garbled characters:** the source is assumed to be UTF-8, which XMLTV almost always is.

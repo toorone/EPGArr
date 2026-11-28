@@ -4,9 +4,9 @@
 //! uses. When new results were found, a normal build runs so they show up.
 //!
 //! Progress is written to <data dir>/enrich_status.json for the dashboard.
-//! The schedule (`build --if-due`, every 15 minutes) and watch mode call
-//! `maybe_spawn`, so the lookups resume on their own after a reboot or an
-//! interruption until everything is done.
+//! The built-in scheduler calls `maybe_spawn` every minute, so the lookups
+//! resume on their own after a restart or an interruption until everything
+//! is done.
 
 use anyhow::{bail, Context, Result};
 use rusqlite::Connection;
