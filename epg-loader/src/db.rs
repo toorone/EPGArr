@@ -182,6 +182,11 @@ const MIGRATIONS: &[&str] = &[
         set_at       INTEGER NOT NULL
     ) WITHOUT ROWID;
     "#,
+    // 3: the default rebuild interval is now 12 hours. A saved 6 was the old default
+    // (the Settings page always saves it), so it follows the new one.
+    r#"
+    UPDATE settings SET value = '12' WHERE key = 'refresh_hours' AND value IN ('6', '6.0');
+    "#,
 ];
 
 pub fn open(data_dir: &Path) -> Result<Connection> {

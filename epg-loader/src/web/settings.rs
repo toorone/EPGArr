@@ -498,7 +498,7 @@ pub async fn page_get(State(app): State<Shared>, headers: HeaderMap, Query(q): Q
         c_logo = checked(on("logo_source", "iptv-org", "off")),
         c_update = checked(on("update_check", "1", "0")),
         logo_country = esc(&v("logo_country", "us")),
-        refresh_hours = esc(&v("refresh_hours", "6")),
+        refresh_hours = esc(&v("refresh_hours", "12")),
         keep = BACKUP_KEEP,
         version = env!("CARGO_PKG_VERSION"),
         open = if bad > 0 { " open" } else { "" },
@@ -592,7 +592,7 @@ fn save_settings(app: &Shared, ctx: &Ctx, f: &Posted) -> Response {
     if !hours.is_some_and(|h| (0.5..=168.0).contains(&h)) {
         errors.push("Refresh interval must be between 0.5 and 168 hours.");
     }
-    kv.push(("refresh_hours", hours.map_or("6".into(), |h| h.to_string())));
+    kv.push(("refresh_hours", hours.map_or("12".into(), |h| h.to_string())));
     kv.push(("logo_source", if f.has("logo_source") { "iptv-org" } else { "off" }.into()));
     for k in ["tmdb_background", "imdb_ratings", "tvmaze", "sportsdb", "update_check"] {
         kv.push((k, if f.has(k) { "1" } else { "0" }.into()));

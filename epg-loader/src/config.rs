@@ -101,7 +101,7 @@ impl Default for Config {
             tmdb_concurrency: 16,
             tmdb_time_budget: 120,
             tmdb_background: true,
-            refresh_hours: 6.0,
+            refresh_hours: 12.0,
             base_dir: PathBuf::from("."),
         }
     }
@@ -197,7 +197,7 @@ impl Config {
             self.logo_country = "us".into();
         }
         if !(self.refresh_hours.is_finite() && self.refresh_hours > 0.0) {
-            self.refresh_hours = 6.0;
+            self.refresh_hours = 12.0;
         }
         Ok(())
     }
@@ -229,7 +229,7 @@ mod tests {
         assert_eq!(c.language, "en-US");
         assert_eq!(c.rating_country, "GB");
         assert_eq!(c.logo_source, LogoSource::IptvOrg);
-        assert_eq!(c.refresh_hours, 6.0);
+        assert_eq!(c.refresh_hours, 12.0);
         assert_eq!(c.output_dir, dir, "guide files go to the data folder unless told otherwise");
         assert_eq!(c.rules_file, dir.join("rules.toml"));
     }

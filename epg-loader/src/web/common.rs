@@ -72,7 +72,7 @@ pub fn settings(app: &App) -> HashMap<String, String> {
 }
 
 pub fn default_hours(app: &App) -> f64 {
-    settings(app).get("refresh_hours").and_then(|v| v.parse().ok()).filter(|h: &f64| *h > 0.0).unwrap_or(6.0)
+    settings(app).get("refresh_hours").and_then(|v| v.parse().ok()).filter(|h: &f64| *h > 0.0).unwrap_or(12.0)
 }
 
 /// Where a guide is served: (xml url, gz url).

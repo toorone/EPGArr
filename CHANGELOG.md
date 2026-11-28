@@ -4,6 +4,13 @@ Every change to EPGArr is written down here, newest first. Each release lists
 what was added, changed, fixed and removed, and anything you must do when you
 update.
 
+## 0.8.1 — 2026-11-28
+
+### Changed
+- Guides are rebuilt every **12 hours** by default (was 6). A saved default of
+  6 hours is moved to 12 when you update; change it in Settings › Schedule. A
+  guide with its own interval on the Guides page keeps it.
+
 ## 0.8.0 — 2026-11-28: admins and viewers
 
 ### Added
