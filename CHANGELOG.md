@@ -4,6 +4,19 @@ Every change to EPGArr is written down here, newest first. Each release lists
 what was added, changed, fixed and removed, and anything you must do when you
 update.
 
+## 0.7.0 — 2026-11-28: sorting and logo search
+
+### Added
+- TV Guide: a small **sort** button next to the channel count (top left of the
+  guide). Sort channels by **channel name** (the default, A–Z with numbers in
+  order, so "Channel 2" comes before "Channel 10"), by the **source's order**,
+  or by **group**. Your choice is remembered.
+- Channel logo dialog: a **Search tv-logos** tab next to Upload and From URL.
+  It searches the [tv-logo/tv-logos](https://github.com/tv-logo/tv-logos) list
+  (starting with the channel's name), shows the logos with their country, and
+  the channel's own country first. Pick one (or double-click it) and Save; it
+  is stored like an uploaded logo.
+
 ## 0.6.3 — 2026-11-28
 
 ### Changed

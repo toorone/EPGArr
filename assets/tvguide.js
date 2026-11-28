@@ -47,7 +47,7 @@
   (function () {
     var $ = function (id) { return document.getElementById(id); };
     var dlg = $('logo-dialog'), form = $('logo-form'), msg = $('logo-msg');
-    var chan = null, tab = 'upload', file = null;
+    var chan = null, tab = 'upload', file = null, picked = '';
     var names = { custom: 'set by you', feed: 'from the guide source', override: 'from an override', 'tv-logos': 'from tv-logos', 'iptv-org': 'from iptv-org', none: 'none yet' };
     function say(text, cls) { msg.className = 'hint ' + (cls || ''); msg.textContent = text || ''; }
     function preview(src) {
@@ -92,6 +92,9 @@
       file = null;
       $('logo-file').value = '';
       $('logo-url').value = '';
+      picked = '';
+      $('logo-q').value = chan.name;
+      $('logo-results').textContent = '';
       $('logo-drop-text').textContent = 'Drop an image here, or click to choose one';
       $('logo-channel').textContent = chan.name;
       $('logo-source').textContent = 'Loading…';
@@ -111,7 +114,56 @@
         });
     });
     dlg.querySelectorAll('[data-close]').forEach(function (b) { b.addEventListener('click', function () { dlg.close ? dlg.close() : dlg.removeAttribute('open'); }); });
-    dlg.querySelectorAll('.logo-tabs button').forEach(function (b) { b.addEventListener('click', function () { setTab(b.dataset.tab); }); });
+    dlg.querySelectorAll('.logo-tabs button').forEach(function (b) {
+      b.addEventListener('click', function () {
+        setTab(b.dataset.tab);
+        if (b.dataset.tab === 'search' && !$('logo-results').childNodes.length) { searchLogos(); }
+      });
+    });
+    // Search tv-logos: pick a result, then Save (it is fetched and stored like a URL).
+    function searchLogos() {
+      var q = $('logo-q').value.trim(), out = $('logo-results');
+      if (!q) { say('Type a channel name to search for.', 'bad-text'); return; }
+      say('Searching tv-logos…');
+      fetch('api/logo?channel=' + encodeURIComponent(chan.id) + '&search=' + encodeURIComponent(q), { credentials: 'same-origin', cache: 'no-store' })
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          out.textContent = '';
+          picked = '';
+          if (j.error) { say(j.error, 'bad-text'); return; }
+          if (!j.results.length) { say('No logo found. Try a shorter name, e.g. without "HD".'); return; }
+          say(j.results.length + (j.results.length >= 60 ? '+' : '') + ' found. Pick one, then Save.');
+          j.results.forEach(function (r) {
+            var b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'logo-hit';
+            b.setAttribute('role', 'option');
+            b.title = r.name + ' (' + r.country + ')';
+            var img = document.createElement('img');
+            img.alt = '';
+            img.loading = 'lazy';
+            img.referrerPolicy = 'no-referrer';
+            img.src = r.url;
+            var cap = document.createElement('span');
+            cap.textContent = r.country;
+            b.appendChild(img);
+            b.appendChild(cap);
+            b.addEventListener('click', function () {
+              out.querySelectorAll('.logo-hit').forEach(function (x) { x.classList.remove('on'); x.setAttribute('aria-selected', 'false'); });
+              b.classList.add('on');
+              b.setAttribute('aria-selected', 'true');
+              picked = r.url;
+              preview(r.url);
+              say(r.name + ' (' + r.country + '): press Save to use it.');
+            });
+            b.addEventListener('dblclick', function () { form.requestSubmit(); });
+            out.appendChild(b);
+          });
+        })
+        .catch(function () { say('The search did not work. Try again.', 'bad-text'); });
+    }
+    $('logo-q-go').addEventListener('click', searchLogos);
+    $('logo-q').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); searchLogos(); } });
     function pickFile(f) {
       file = f || null;
       if (!file) { return; }
@@ -132,6 +184,9 @@
       if (tab === 'upload') {
         if (!file) { say('Choose an image first.', 'bad-text'); return; }
         fd.append('file', file);
+      } else if (tab === 'search') {
+        if (!picked) { say('Pick a logo from the results first.', 'bad-text'); return; }
+        fd.append('url', picked);
       } else {
         var u = $('logo-url').value.trim();
         if (!u) { say('Enter the address of an image first.', 'bad-text'); return; }

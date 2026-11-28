@@ -107,7 +107,7 @@
     S.rendered.forEach(function (r) { r.el.remove(); });
     S.rendered.clear();
     body.style.height = (S.rows.length * S.dims.rowH) + 'px';
-    el('g-count').textContent = S.rows.length.toLocaleString() + (S.rows.length === 1 ? ' channel' : ' channels');
+    countEl.textContent = S.rows.length.toLocaleString() + (S.rows.length === 1 ? ' channel' : ' channels');
     status.hidden = S.rows.length > 0;
     if (!S.rows.length) status.textContent = 'No channels match.';
     render();
@@ -259,12 +259,76 @@
 
   // ---------- filters
 
+  // ---------- sorting: channel name (default), the source's order, or group
+
+  var SORTS = [['name', 'Channel name'], ['source', 'Source order'], ['group', 'Group']];
+  S.sort = 'name';
+  try { if (SORTS.some(function (s) { return s[0] === localStorage.getItem('epg-guide-sort'); })) S.sort = localStorage.getItem('epg-guide-sort'); } catch (e) {}
+  var byName = function (a, b) { return a[2].localeCompare(b[2], undefined, { numeric: true, sensitivity: 'base' }) || a[0] - b[0]; };
+  function sortRows(rows) {
+    if (S.sort === 'source') return rows.sort(function (a, b) { return a[0] - b[0]; });
+    if (S.sort === 'group') {
+      return rows.sort(function (a, b) {
+        return (a[4] || '\uffff').localeCompare(b[4] || '\uffff') || byName(a, b);
+      });
+    }
+    return rows.sort(byName);
+  }
+
+  // The channel count in the guide's top-left corner, with the sort button next to it.
+  var corner = el('g-count');
+  corner.textContent = '';
+  var countEl = make('span', 'g-count-n');
+  corner.appendChild(countEl);
+  var sortWrap = make('div', 'g-sort');
+  var sortBtn = make('button', 'g-sort-btn');
+  sortBtn.type = 'button';
+  sortBtn.setAttribute('aria-haspopup', 'menu');
+  sortBtn.setAttribute('aria-expanded', 'false');
+  sortBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 4v16M3 16l4 4 4-4M14 6h7M14 12h5M14 18h3"/></svg><span></span>';
+  var sortMenu = make('div', 'g-sort-menu');
+  sortMenu.setAttribute('role', 'menu');
+  sortMenu.hidden = true;
+  SORTS.forEach(function (s) {
+    var b = make('button', 'g-sort-item', s[1]);
+    b.type = 'button';
+    b.setAttribute('role', 'menuitemradio');
+    b.dataset.sort = s[0];
+    b.addEventListener('click', function () {
+      S.sort = s[0];
+      try { localStorage.setItem('epg-guide-sort', S.sort); } catch (e) {}
+      sortMenu.hidden = true;
+      sortBtn.setAttribute('aria-expanded', 'false');
+      showSort();
+      applyFilter();
+    });
+    sortMenu.appendChild(b);
+  });
+  function showSort() {
+    var label = SORTS.filter(function (s) { return s[0] === S.sort; })[0][1];
+    sortBtn.querySelector('span').textContent = { name: 'A–Z', source: 'Source', group: 'Group' }[S.sort];
+    sortBtn.title = 'Sort channels: ' + label;
+    sortBtn.setAttribute('aria-label', 'Sort channels by ' + label);
+    sortMenu.querySelectorAll('button').forEach(function (b) { b.setAttribute('aria-checked', b.dataset.sort === S.sort ? 'true' : 'false'); });
+  }
+  sortBtn.addEventListener('click', function (e) {
+    e.stopPropagation();
+    sortMenu.hidden = !sortMenu.hidden;
+    sortBtn.setAttribute('aria-expanded', sortMenu.hidden ? 'false' : 'true');
+  });
+  document.addEventListener('click', function (e) { if (!sortMenu.hidden && !sortWrap.contains(e.target)) { sortMenu.hidden = true; sortBtn.setAttribute('aria-expanded', 'false'); } });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !sortMenu.hidden) { sortMenu.hidden = true; sortBtn.focus(); } });
+  sortWrap.appendChild(sortBtn);
+  sortWrap.appendChild(sortMenu);
+  corner.appendChild(sortWrap);
+  showSort();
+
   function applyFilter() {
     var q = S.query.toLowerCase();
-    S.rows = S.channels.filter(function (c) {
+    S.rows = sortRows(S.channels.filter(function (c) {
       if (S.group && c[4] !== S.group) return false;
       return !q || c[2].toLowerCase().indexOf(q) >= 0 || c[1].toLowerCase().indexOf(q) >= 0;
-    });
+    }));
     scroller.scrollTop = 0;
     resetRows();
   }
@@ -585,7 +649,7 @@
       return;
     }
     S.channels = j.channels;
-    S.rows = j.channels;
+    S.rows = sortRows(j.channels.slice());
     S.min = j.min;
     S.max = j.max;
     lastPhone = window.matchMedia('(max-width: 640px)').matches;
@@ -593,7 +657,7 @@
     // Back from another page: the same group filter, day and place as before.
     if (back && back.group && (j.groups || []).some(function (g) { return g[0] === back.group; })) {
       S.group = back.group;
-      S.rows = S.channels.filter(function (c) { return c[4] === S.group; });
+      S.rows = sortRows(S.channels.filter(function (c) { return c[4] === S.group; }));
     }
     buildChips(j.groups || []);
     var today = localMidnight(Date.now() / 1000);

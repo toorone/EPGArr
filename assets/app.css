@@ -836,3 +836,24 @@ main.page-guide { padding-bottom: 1rem; }
 
 /* Activity: the one log */
 .act-log-all { height: 420px; }
+
+/* TV Guide: channel count and the sort button in the top-left corner */
+.g-corner { justify-content: space-between; gap: 0.4rem; overflow: visible; }
+.g-count-n { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.g-sort { position: relative; flex: none; }
+.g-sort-btn { display: inline-flex; align-items: center; gap: 0.3rem; height: 24px; margin: 0; padding: 0 0.5rem; border: 1px solid var(--line); border-radius: 999px; background: transparent; box-shadow: none; color: var(--muted); font: inherit; font-size: 0.72rem; font-weight: 600; cursor: pointer; }
+.g-sort-btn:hover, .g-sort-btn[aria-expanded="true"] { color: var(--text); border-color: var(--accent); filter: none; }
+.g-sort-btn svg { width: 13px; height: 13px; }
+.g-sort-menu { position: absolute; top: calc(100% + 6px); left: 0; z-index: 40; min-width: 160px; padding: 0.3rem; border-radius: 10px; border: 1px solid var(--line); background: var(--panel-2); box-shadow: var(--shadow-3); }
+.g-sort-item { display: block; width: 100%; margin: 0; padding: 0.45rem 0.65rem; border: 0; border-radius: 7px; background: transparent; box-shadow: none; color: var(--text); font: inherit; font-size: 0.85rem; font-weight: 500; text-align: left; cursor: pointer; }
+.g-sort-item:hover { background: rgba(255, 255, 255, 0.06); filter: none; }
+.g-sort-item[aria-checked="true"] { background: var(--accent-soft); }
+.g-sort-item[aria-checked="true"]::after { content: "\2713"; float: right; color: var(--accent); }
+
+/* Channel logo dialog: tv-logos search results */
+.logo-results { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 0.5rem; max-height: 300px; overflow-y: auto; margin-top: 0.6rem; }
+.logo-hit { display: flex; flex-direction: column; align-items: center; gap: 0.3rem; margin: 0; padding: 0.5rem 0.35rem 0.35rem; border: 1px solid var(--line); border-radius: 10px; background: #0f1115; box-shadow: none; color: var(--muted); font: inherit; font-size: 0.68rem; cursor: pointer; }
+.logo-hit img { width: 100%; height: 48px; object-fit: contain; }
+.logo-hit span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-transform: capitalize; }
+.logo-hit:hover { border-color: var(--accent); color: var(--text); filter: none; }
+.logo-hit.on { border-color: var(--accent); background: var(--accent-soft); color: var(--text); box-shadow: 0 0 0 1px var(--accent); }

@@ -85,6 +85,60 @@ fn parse_path(path: &str) -> Option<(String, String)> {
     Some((cc, key))
 }
 
+/// One logo found by `search`: (name, country folder, image URL).
+pub type Found = (String, String, String);
+
+/// Search the tv-logos file list for the logo dialog: every word of `query`
+/// must be in the file name. Best first: the exact name, logos from
+/// `prefer_cc`, then shorter names. At most `limit` results.
+pub fn search(paths: &[String], raw_base: &str, query: &str, prefer_cc: &str, limit: usize) -> Vec<Found> {
+    let words: Vec<String> = query
+        .to_lowercase()
+        .split(|c: char| !c.is_alphanumeric())
+        .filter(|w| !w.is_empty())
+        .map(String::from)
+        .collect();
+    if words.is_empty() {
+        return Vec::new();
+    }
+    let wanted = words.concat();
+    let base = raw_base.trim_end_matches('/');
+    let mut hits: Vec<(u8, usize, &String, String, String)> = paths
+        .iter()
+        .filter_map(|p| {
+            let rest = p.strip_prefix("countries/")?;
+            let (folder, file) = rest.split_once('/').map(|(f, _)| (f, rest.rsplit('/').next().unwrap_or(""))).unwrap_or(("", rest));
+            let (stem, ext) = file.rsplit_once('.')?;
+            if !matches!(ext.to_ascii_lowercase().as_str(), "png" | "jpg" | "jpeg" | "webp") {
+                return None;
+            }
+            let lower = stem.to_lowercase();
+            let flat: String = lower.chars().filter(|c| c.is_alphanumeric()).collect();
+            if !words.iter().all(|w| flat.contains(w.as_str())) {
+                return None;
+            }
+            let cc = lower.rsplit_once('-').map(|(_, c)| c.to_string()).unwrap_or_default();
+            let name_only: String = lower.rsplit_once('-').map(|(n, _)| n).unwrap_or(&lower).chars().filter(|c| c.is_alphanumeric()).collect();
+            let rank = match (name_only == wanted, !prefer_cc.is_empty() && cc == prefer_cc) {
+                (true, true) => 0,
+                (true, false) => 1,
+                (false, true) => 2,
+                (false, false) => 3,
+            };
+            let name = stem.replace('-', " ");
+            Some((rank, stem.len(), p, name, folder.replace('-', " ")))
+        })
+        .collect();
+    hits.sort_by(|a, b| (a.0, a.1, a.2).cmp(&(b.0, b.1, b.2)));
+    hits.into_iter()
+        .take(limit)
+        .map(|(_, _, p, name, country)| {
+            let url = format!("{base}/{}", p.split('/').map(|s| s.replace(' ', "%20")).collect::<Vec<_>>().join("/"));
+            (name, country, url)
+        })
+        .collect()
+}
+
 /// The channel's country from an id such as "ABC.us" or "BBCOne.uk@HD", and the id without it.
 fn split_id(xml_id: &str) -> (&str, Option<String>) {
     let id = xml_id.trim();
@@ -305,6 +359,27 @@ async fn fetch_list(client: &reqwest::Client, api_url: &str, cached: &[String]) 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn searches_the_file_list() {
+        let paths: Vec<String> = [
+            "countries/united-states/abc-us.png",
+            "countries/united-states/abc-news-us.png",
+            "countries/united-kingdom/abc-uk.png",
+            "countries/united-states/cnn-us.png",
+            "misc/readme.md",
+        ]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
+        let r = search(&paths, "https://raw/x/", "ABC", "uk", 10);
+        assert_eq!(r.len(), 3);
+        assert_eq!(r[0].2, "https://raw/x/countries/united-kingdom/abc-uk.png", "exact name in the preferred country first");
+        assert_eq!(r[1].0, "abc us");
+        assert_eq!(r[1].1, "united states");
+        assert_eq!(search(&paths, "https://raw/x", "abc news", "us", 10).len(), 1);
+        assert!(search(&paths, "https://raw/x", "  ", "us", 10).is_empty());
+    }
 
     fn index() -> TvLogos {
         let paths: Vec<String> = [

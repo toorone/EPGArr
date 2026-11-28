@@ -163,6 +163,33 @@ fn logo_info(conn: &Connection, channel: &str) -> Value {
     json!({ "guides": guides.max(1), "logo": logo, "source": source })
 }
 
+/// Search tv-logos for the dialog. The list is the one the builds downloaded.
+fn search(app: &App, channel: &str, query: &str) -> Value {
+    let query = query.trim();
+    if query.is_empty() || query.len() > 100 {
+        return json!({ "error": "Type a channel name to search for." });
+    }
+    let Ok(conn) = app.db() else { return json!({ "error": "The database is not available." }) };
+    let paths = crate::db::tv_logo_list(&conn).map(|(p, _, _)| p).unwrap_or_default();
+    if paths.is_empty() {
+        return json!({ "error": "The tv-logos list is downloaded with the first guide build. Build a guide, then search again." });
+    }
+    let cfg = crate::db::load_config(&conn, &app.data_dir, Some(&app.output_dir)).ok();
+    let raw = cfg.as_ref().map(|c| c.tv_logos_raw_url.clone()).unwrap_or_default();
+    // The channel's own country (from an id like "ABC.us"), else the default logo country.
+    let cc = channel
+        .split('@')
+        .next()
+        .and_then(|b| b.rsplit_once('.'))
+        .map(|(_, c)| c.to_ascii_lowercase())
+        .filter(|c| c.len() == 2 && c.chars().all(|x| x.is_ascii_alphabetic()))
+        .or_else(|| cfg.as_ref().map(|c| c.logo_country.clone()))
+        .unwrap_or_default();
+    let cc = if cc == "gb" { "uk".to_string() } else { cc };
+    let found = crate::tvlogos::search(&paths, &raw, query, &cc, 60);
+    json!({ "results": found.into_iter().map(|(name, country, url)| json!({ "name": name, "country": country, "url": url })).collect::<Vec<_>>() })
+}
+
 fn merge(mut a: Value, b: Value) -> Value {
     if let (Some(a), Value::Object(b)) = (a.as_object_mut(), b) {
         a.extend(b);
@@ -182,6 +209,9 @@ pub async fn info(State(app): State<Shared>, headers: HeaderMap, Query(q): Query
     let channel = q.get("channel").cloned().unwrap_or_default();
     if !valid_channel(&channel) {
         return json(&ctx, StatusCode::BAD_REQUEST, json!({ "error": "Which channel?" }));
+    }
+    if let Some(query) = q.get("search") {
+        return json(&ctx, StatusCode::OK, search(&app, &channel, query));
     }
     match app.db() {
         Ok(conn) => json(
