@@ -68,7 +68,7 @@ jobs:
             exit 1
           }
           mkdir -p data
-          docker run -d --name t -p 8080:80 -e PUID=1234 -e PGID=1234 -v "$PWD/data:/data" epgarr:test || fail "docker run failed"
+          out=$(docker run -d --name t -p 8080:80 -e PUID=1234 -e PGID=1234 -v "$PWD/data:/data" epgarr:test 2>&1) || fail "docker run failed: $out | images: $(docker images --format '{{.Repository}}:{{.Tag}}' | tr -s '[:space:]' ' ')"
           for i in $(seq 1 30); do curl -fsS -o /dev/null http://127.0.0.1:8080/ && break; sleep 1; done
           curl -fsS http://127.0.0.1:8080/ | grep -q "Create your account" || fail "the first page did not show Create your account"
           sleep 2
