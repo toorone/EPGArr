@@ -50,12 +50,16 @@ fn pct(a: i64, b: i64) -> String {
 }
 
 /// The Dashboard before the first guide exists: what to do, in order.
-fn get_started(app: &Shared) -> String {
-    let has_key = super::common::settings(app).get("tmdb_api_key").is_some_and(|k| !k.trim().is_empty());
-    let key_step = if has_key {
-        r#"<li class="done"><strong>Artwork and info</strong><p class="muted">Your TMDB key is saved, so posters, ratings and descriptions will be added.</p></li>"#.to_string()
+fn get_started(app: &Shared, ctx: &super::Ctx) -> String {
+    let st = super::common::settings(app);
+    let has = |k: &str| st.get(k).is_some_and(|v| !v.trim().is_empty());
+    let key_step = if has("tmdb_api_key") {
+        r#"<li class="done"><strong>Keys for artwork and info</strong><p class="muted">Your TMDB key is saved, so posters, ratings and descriptions will be added. Keys can be changed in <a href="settings#artwork">Settings › Artwork &amp; info</a>.</p></li>"#.to_string()
     } else {
-        r#"<li><strong>Artwork and info (optional)</strong><p class="muted">Paste a free TMDB API key so posters, ratings and descriptions are added. Without it the guide still works, with channel logos, IMDb ratings, TVmaze and TheSportsDB.</p><a class="button secondary" href="settings#artwork">Open Settings</a></li>"#.to_string()
+        format!(
+            r#"<li><strong>Keys for artwork and info (optional)</strong><p class="muted">With a free TMDB key, posters, age ratings and descriptions are added. Without one the guide still works, with channel logos, IMDb ratings, TVmaze and TheSportsDB.</p><form method="post" action="settings" class="start-keys" autocomplete="off">{csrf}<input type="hidden" name="action" value="save_keys"><input type="hidden" name="back" value="index"><label for="sk-tmdb">TMDB API key or read access token</label><div class="url-box"><input type="password" id="sk-tmdb" name="tmdb_api_key" autocomplete="new-password" placeholder="Paste your TMDB key"><a class="button secondary" href="{TMDB_KEY_URL}" target="_blank" rel="noopener">Get a free key ↗</a></div><p class="hint">Sign in or sign up at themoviedb.org; the link opens the page with your key (API Key or API Read Access Token).</p><label for="sk-sports">TheSportsDB API key <span class="muted">(optional)</span></label><input type="text" id="sk-sports" name="sportsdb_key" class="short" placeholder="123 (free test key)"><p class="hint">Leave empty to use the free key.</p><div class="form-actions"><button>Save keys</button></div></form></li>"#,
+            csrf = csrf_field(ctx),
+        )
     };
     format!(
         r#"<div class="card start-card"><h2>{icon}Get started</h2><p class="muted">EPGArr turns your XMLTV source into a guide your media server can use. Three steps:</p><ol class="start-steps"><li><strong>Add your first guide</strong><p class="muted">Give it a name and the address of your XMLTV source (from your IPTV provider or an EPG site). Use <em>Test source</em> to check it before saving.</p><a class="button" href="guides?add=1">Add a guide</a></li>{key_step}<li><strong>Build it and add it to your media server</strong><p class="muted">Press <em>Build now</em>; the first build takes a few minutes. Then copy the guide's address from the Dashboard into Emby, Plex or Jellyfin as an XMLTV guide source. It is rebuilt every {h} hours after that.</p></li></ol></div>"#,
@@ -63,6 +67,9 @@ fn get_started(app: &Shared) -> String {
         h = super::common::hours_text(default_hours(app)),
     )
 }
+
+/// Where you get a TMDB key (the page shows it once you are signed in).
+pub const TMDB_KEY_URL: &str = "https://www.themoviedb.org/settings/api?language=en-US";
 
 pub async fn page_get(State(app): State<Shared>, headers: HeaderMap, Query(q): Query<HashMap<String, String>>) -> Response {
     let ctx = app.ctx(&headers);
@@ -78,7 +85,7 @@ pub async fn page_get(State(app): State<Shared>, headers: HeaderMap, Query(q): Q
     };
     let guides = db::guides(&conn).unwrap_or_default();
     if guides.is_empty() {
-        return html_page(&ctx, page(&ctx, "dashboard", "Dashboard", "", &get_started(&app)));
+        return html_page(&ctx, page(&ctx, "dashboard", "Dashboard", "", &get_started(&app, &ctx)));
     }
     let cov = coverage(&app, &conn);
     let building = jobs::build_running(&app);

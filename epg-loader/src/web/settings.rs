@@ -342,7 +342,7 @@ pub async fn page_get(State(app): State<Shared>, headers: HeaderMap, Query(q): Q
     let me = ctx.user.clone().unwrap_or_default();
 
     let key_part = if saved_key.is_empty() {
-        r#"<p class="hint">Free at themoviedb.org → Settings → API. Without it, no posters or ratings are added.</p>"#.to_string()
+        format!(r#"<p class="hint">Free at themoviedb.org: <a href="{}" target="_blank" rel="noopener">get your TMDB key ↗</a>. Without it, no posters or ratings are added.</p>"#, super::dash::TMDB_KEY_URL)
     } else {
         r#"<label class="check"><input type="checkbox" name="clear_key" value="1"> Remove the saved key (turns TMDB lookups off)</label>"#.to_string()
     };
@@ -630,6 +630,47 @@ fn save_settings(app: &Shared, ctx: &Ctx, f: &Posted) -> Response {
     redirect(ctx, "settings")
 }
 
+/// Just the API keys (from Get started on the Dashboard). Empty fields keep what is saved.
+fn save_keys(app: &Shared, ctx: &Ctx, f: &Posted) -> Response {
+    let back = if f.get("back") == "index" { "./" } else { "settings#artwork" };
+    let key = f.get("tmdb_api_key").trim().to_string();
+    let sk = f.get("sportsdb_key").trim().to_string();
+    if !key.is_empty() && !valid_key(&key) {
+        app.flash(ctx, "error", "That does not look like a TMDB API key or read access token.");
+        return redirect(ctx, back);
+    }
+    if !sk.is_empty() && !(sk.len() <= 64 && sk.bytes().all(|c| c.is_ascii_alphanumeric())) {
+        app.flash(ctx, "error", "The TheSportsDB key should be letters and digits only.");
+        return redirect(ctx, back);
+    }
+    let mut kv: Vec<(&str, String)> = Vec::new();
+    if !key.is_empty() {
+        kv.push(("tmdb_api_key", key));
+    }
+    if !sk.is_empty() {
+        kv.push(("sportsdb_key", sk));
+    }
+    if kv.is_empty() {
+        app.flash(ctx, "error", "Paste a key first.");
+        return redirect(ctx, back);
+    }
+    let r = (|| -> anyhow::Result<()> {
+        let conn = app.db()?;
+        for (k, v) in &kv {
+            conn.execute("INSERT INTO settings (key, value) VALUES (?1, ?2) ON CONFLICT(key) DO UPDATE SET value = excluded.value", [k, v.as_str()])?;
+        }
+        Ok(())
+    })();
+    match r {
+        Ok(()) => {
+            jobs::queue_check(app);
+            app.flash(ctx, "ok", "Keys saved. The TMDB key is being tested; the result is in Settings › Advanced › System checks.");
+        }
+        Err(e) => app.flash(ctx, "error", format!("Error: {e}")),
+    }
+    redirect(ctx, back)
+}
+
 fn users_action(app: &Shared, ctx: &Ctx, action: &str, f: &Posted) -> Response {
     let me = ctx.user.clone().unwrap_or_default();
     let mut users = auth::users(&app.data_dir);
@@ -716,6 +757,7 @@ pub async fn page_post(State(app): State<Shared>, headers: HeaderMap, req: Reque
     let action = f.get("action");
     match action.as_str() {
         "save_settings" => save_settings(&app, &ctx, &f),
+        "save_keys" => save_keys(&app, &ctx, &f),
         "add_user" | "set_password" | "toggle_user" | "delete_user" => users_action(&app, &ctx, &action, &f),
         "backup_create" => {
             match backup_create(&app, "manual") {

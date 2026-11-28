@@ -821,3 +821,9 @@ main.page-guide { padding-bottom: 1rem; }
 .set-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin: 0 0 0.9rem; }
 .set-panel-head h2 { margin: 0; }
 .set-panel-head .button { margin: 0; }
+
+/* Get started: the keys form */
+.start-keys { margin-top: 0.4rem; }
+.start-keys .url-box { gap: 0.5rem; }
+.start-keys .url-box .button { flex: none; margin: 0; white-space: nowrap; }
+.start-keys .form-actions { margin-top: 0.6rem; }

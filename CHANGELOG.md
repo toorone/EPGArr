@@ -4,6 +4,15 @@ Every change to EPGArr is written down here, newest first. Each release lists
 what was added, changed, fixed and removed, and anything you must do when you
 update.
 
+## 0.6.1 — 2026-11-28
+
+### Added
+- **Get started** asks for the keys too: paste your TMDB key (and,
+  optionally, a TheSportsDB key) right there and press **Save keys**. A
+  **Get a free key ↗** button opens the TMDB page where your key is
+  (https://www.themoviedb.org/settings/api). The key is tested straight away.
+- Settings › Artwork & info links to the same TMDB page when no key is saved.
+
 ## 0.6.0 — 2026-11-27: its own user
 
 ### Changed
